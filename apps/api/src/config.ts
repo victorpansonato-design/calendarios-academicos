@@ -33,7 +33,8 @@ function str(name: string, fallback = ''): string {
 }
 
 export function loadConfig() {
-  const dataDir = path.resolve(repoRoot, str('DATA_DIR', 'data'));
+  // Na Vercel só /tmp aceita escrita (e é apagado quando a instância recicla).
+  const dataDir = path.resolve(repoRoot, str('DATA_DIR', process.env.VERCEL ? '/tmp/calendarios' : 'data'));
   return {
     port: num('PORT', 3001),
     host: str('HOST', '0.0.0.0'),
