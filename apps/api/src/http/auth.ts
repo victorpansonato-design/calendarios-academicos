@@ -9,9 +9,10 @@ import { recordAudit } from '../repositories/audit';
 /* ==========================================================================
    Autenticação e permissões
    --------------------------------------------------------------------------
-   AUTH_MODE=dev (padrão): o botão "Entrar com Microsoft" cria uma sessão
-   para o usuário de desenvolvimento, com papel admin. NÃO há Outlook nem
-   senha — é só para operar o sistema enquanto a TI não liga o SSO.
+   AUTH_MODE=dev (padrão): login só visual. O botão "Entrar com a conta
+   Microsoft" apenas abre o sistema; a API trata toda requisição como o usuário
+   de desenvolvimento (papel admin). NÃO há Outlook, senha nem controle de
+   acesso — é só para operar enquanto a TI não liga o SSO.
 
    AUTH_MODE=entra: reservado para o Microsoft Entra ID (OIDC). O login devolve
    501 até a TI implementar `loginWithEntra` (ver docs/INTEGRACAO_TI.md). O
@@ -39,7 +40,11 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
     if (!req.url.startsWith('/api/')) return;
     if (PUBLIC_PREFIXES.some((p) => req.url.startsWith(p))) return;
     const token = bearer(req);
-    const user = token ? userForSession(ctx.db, token) : undefined;
+    let user = token ? userForSession(ctx.db, token) : undefined;
+    // Login visual (AUTH_MODE=dev): sem sessão, quem usa é o usuário de
+    // desenvolvimento. NÃO há controle de acesso neste modo — só para uso interno
+    // até a TI ligar o Entra ID (AUTH_MODE=entra), quando a sessão passa a valer.
+    if (!user && ctx.config.auth.mode === 'dev') user = upsertUser(ctx.db, ctx.config.auth.devUserEmail, ctx.config.auth.devUserName, 'admin');
     if (!user) throw new HttpError(401, 'Sua sessão expirou. Entre novamente.');
     req.user = user;
   });

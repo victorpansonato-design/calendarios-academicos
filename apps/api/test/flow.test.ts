@@ -257,8 +257,14 @@ describe('conferência e publicação', () => {
 });
 
 describe('segurança básica', () => {
-  it('sem sessão, nada é acessível', async () => {
-    expect((await t.app.inject({ method: 'GET', url: '/api/calendars' })).statusCode).toBe(401);
+  it('com o Entra ID ligado, sem sessão nada é acessível', async () => {
+    const entra = await createTestApp({ AUTH_MODE: 'entra' });
+    expect((await entra.app.inject({ method: 'GET', url: '/api/calendars' })).statusCode).toBe(401);
+  });
+
+  it('no modo de desenvolvimento, o login é só visual: funciona sem sessão', async () => {
+    const res = await t.app.inject({ method: 'GET', url: '/api/calendars' });
+    expect(res.statusCode).toBe(200);
   });
 
   it('integração sem chave é recusada', async () => {

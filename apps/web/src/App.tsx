@@ -11,6 +11,7 @@ import { api } from './lib/api';
 import { clearSession, useSession } from './lib/session';
 import { useRoute } from './lib/router';
 import { pageVariants } from './lib/motion';
+import { ServerUnavailable } from './views/ServerUnavailable';
 
 export default function App() {
   const session = useSession();
@@ -21,9 +22,19 @@ function Authenticated() {
   const session = useSession()!;
   const route = useRoute();
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [serverDown, setServerDown] = useState(false);
+
+  const check = () =>
+    api
+      .status()
+      .then((s) => {
+        setStatus(s);
+        setServerDown(false);
+      })
+      .catch(() => setServerDown(true));
 
   useEffect(() => {
-    api.status().then(setStatus).catch(() => undefined);
+    void check();
   }, []);
 
   const logout = async () => {
@@ -36,6 +47,9 @@ function Authenticated() {
 
   return (
     <Shell section={section} user={session.user} status={status} onLogout={logout}>
+      {serverDown ? (
+        <ServerUnavailable onRetry={check} />
+      ) : (
       <AnimatePresence mode="wait">
         <motion.div key={key} variants={pageVariants} initial="initial" animate="animate" exit="exit">
           {route.name === 'calendars' && <CalendarsView status={status} />}
@@ -43,6 +57,7 @@ function Authenticated() {
           {route.name === 'notifications' && <NotificationsView tab={route.tab} status={status} />}
         </motion.div>
       </AnimatePresence>
+      )}
     </Shell>
   );
 }
