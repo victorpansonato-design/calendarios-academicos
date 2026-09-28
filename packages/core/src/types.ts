@@ -187,10 +187,12 @@ export const IMPORTANCE_LABEL: Record<Importance, string> = {
 export type ReminderAnchor = 'start' | 'end' | 'each' | 'first';
 
 export interface ReminderOffset {
-  /** Identidade estável do lembrete dentro do evento ("d3", "d1", "c-…"). */
+  /** Identidade estável do lembrete dentro do evento ("d3", "d1", "d0"). */
   id: string;
+  /** 0 = no dia do evento. */
   daysBefore: number;
-  time: WallTime;
+  /** Horário de envio. Vazio = ainda não informado, e isso trava a publicação. */
+  time: WallTime | '';
 }
 
 export interface EventNotificationRule {
@@ -245,7 +247,9 @@ export type IssueCode =
   | 'possible_duplicate_calendar'
   | 'scope_unrecognized'
   | 'page_without_text'
-  | 'grid_day_without_event';
+  | 'grid_day_without_event'
+  | 'reminder_time_missing'
+  | 'reminder_after_start';
 
 export interface ReviewIssue {
   code: IssueCode;

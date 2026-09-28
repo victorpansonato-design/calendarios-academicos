@@ -1,4 +1,5 @@
-import type { CalendarStatus, Importance, ImportItemStatus, IssueCode, JobKind, JobStatus } from '@calendarios/core';
+import type { CalendarEvent, CalendarStatus, Importance, ImportItemStatus, IssueCode, JobKind, JobStatus } from '@calendarios/core';
+import { momentLabel, reminderTime } from '@calendarios/core';
 import type { Tone } from '../components/ui/Badges';
 
 /* Palavra + tom de cada estado. A palavra é sempre visível: cor nunca é o único canal. */
@@ -68,7 +69,22 @@ export const ISSUE_LABEL: Record<IssueCode, string> = {
   scope_unrecognized: 'Dado geral faltando',
   page_without_text: 'Página sem texto',
   grid_day_without_event: 'Dia colorido sem evento',
+  reminder_time_missing: 'Falta o horário do aviso',
+  reminder_after_start: 'Aviso depois do início',
 };
+
+/** O aviso de um evento, numa frase curta: "No dia e 1 dia antes · 07h00". */
+export function reminderSummary(e: Pick<CalendarEvent, 'importance' | 'notification'>): { text: string; tone: Tone; attention: boolean } {
+  if (e.importance === 'unset') return { text: 'Não escolhido', tone: 'warn', attention: true };
+  const offsets = e.notification.enabled ? e.notification.offsets : [];
+  if (e.importance === 'low' || !offsets.length) return { text: 'Não avisar', tone: 'muted', attention: false };
+  const days = [...offsets].map((o) => o.daysBefore).sort((a, b) => a - b);
+  const labels = days.map((d, i) => (i === 0 ? momentLabel(d) : momentLabel(d).toLowerCase()));
+  const moments = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}` : labels[0];
+  const time = reminderTime(e.notification);
+  if (offsets.some((o) => !o.time)) return { text: `${moments} · falta o horário`, tone: 'crit', attention: true };
+  return { text: `${moments} · ${time ? time.replace(':', 'h') : 'horários diferentes'}`, tone: 'info', attention: false };
+}
 
 export const COHORT_LABEL = { ingressantes: 'Ingressantes', veteranos: 'Veteranos' } as const;
 

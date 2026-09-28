@@ -8,7 +8,7 @@ import * as repo from '../repositories/calendars';
 import { getFile } from '../repositories/files';
 import { listAudit } from '../repositories/audit';
 import { badRequest, notFound } from '../services/errors';
-import { eventInput, importance, legendInput, scopeInput } from '../services/validate';
+import { eventInput, importance, legendInput, scopeInput, wallTime } from '../services/validate';
 import { planFor } from '../services/notifications';
 import { listJobs } from '../repositories/notifications';
 
@@ -103,6 +103,16 @@ export function registerCalendarRoutes(app: FastifyInstance, ctx: AppContext) {
     const b = (req.body ?? {}) as { eventIds?: unknown; importance?: unknown };
     if (!Array.isArray(b.eventIds) || !b.eventIds.length) throw badRequest('Selecione pelo menos um evento.');
     const changed = svc.bulkImportance(ctx, req.params.id, b.eventIds.map(String), importance(b.importance), user);
+    return { changed, ...svc.getDetail(ctx, req.params.id) };
+  });
+
+  app.post<{ Params: P }>('/api/calendars/:id/events/bulk-reminders', async (req) => {
+    const user = need(req, 'calendar.edit');
+    const b = (req.body ?? {}) as { eventIds?: unknown; days?: unknown; time?: unknown };
+    if (!Array.isArray(b.eventIds) || !b.eventIds.length) throw badRequest('Selecione pelo menos um evento.');
+    if (!Array.isArray(b.days) || b.days.some((d) => !Number.isInteger(d) || (d as number) < 0 || (d as number) > 60)) throw badRequest('Momentos de aviso inválidos.');
+    const time = b.time ? wallTime(b.time, 'Horário do aviso') : '';
+    const changed = svc.bulkReminders(ctx, req.params.id, b.eventIds.map(String), b.days as number[], time, user);
     return { changed, ...svc.getDetail(ctx, req.params.id) };
   });
 

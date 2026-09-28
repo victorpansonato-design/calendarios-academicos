@@ -43,6 +43,8 @@ export const FIX_REQUIRED: ReadonlySet<IssueCode> = new Set<IssueCode>([
   'missing_title',
   'importance_unset',
   'anchor_unconfirmed',
+  'reminder_time_missing',
+  'reminder_after_start',
 ]);
 
 /**
@@ -59,6 +61,7 @@ export const HARD_BLOCKERS: ReadonlySet<IssueCode> = new Set<IssueCode>([
   'missing_title',
   'anchor_unconfirmed',
   'page_without_text',
+  'reminder_time_missing',
 ]);
 
 function soften(issue: ReviewIssue): ReviewIssue {
@@ -80,6 +83,24 @@ export function liveEventIssues(event: CalendarEvent): ReviewIssue[] {
       severity: 'info',
       field: 'importance',
       message: 'Aviso ainda não escolhido. Enquanto isso, nenhum aviso sai para este evento.',
+    });
+  const avisa = event.notification.enabled && (event.importance === 'medium' || event.importance === 'high');
+  if (avisa && event.notification.offsets.some((o) => !o.time))
+    out.push({
+      code: 'reminder_time_missing',
+      severity: 'blocker',
+      field: 'notification',
+      message: 'Informe o horário do aviso.',
+    });
+  // aviso "no dia" que sai depois que o evento já começou
+  const firstTime = [...event.times].map((t) => t.time).sort()[0];
+  const sameDay = event.notification.offsets.find((o) => o.daysBefore === 0 && o.time);
+  if (avisa && firstTime && sameDay && sameDay.time >= firstTime)
+    out.push({
+      code: 'reminder_after_start',
+      severity: 'warning',
+      field: 'notification',
+      message: `O aviso do dia sai às ${sameDay.time.replace(':', 'h')}, mas o evento começa às ${firstTime.replace(':', 'h')}. Os alunos seriam avisados depois do início.`,
     });
   if (
     event.datesResolved &&

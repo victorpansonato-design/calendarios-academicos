@@ -74,6 +74,26 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     return reply.code(500).send({ error: 'Algo deu errado no servidor. Tente de novo; se persistir, avise a TI.' });
   });
 
+  // Interface em outro domínio (ex.: Vercel): só as origens listadas em CORS_ORIGINS.
+  // A autenticação é por cabeçalho Authorization, então não há cookie envolvido.
+  if (ctx.config.corsOrigins.length) {
+    const allowed = new Set(ctx.config.corsOrigins);
+    app.addHook('onRequest', async (req, reply) => {
+      const origin = req.headers.origin;
+      if (!origin || !allowed.has(origin)) return;
+      reply.header('access-control-allow-origin', origin);
+      reply.header('vary', 'Origin');
+      if (req.method === 'OPTIONS') {
+        reply
+          .header('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+          .header('access-control-allow-headers', 'authorization,content-type,x-integration-key')
+          .header('access-control-max-age', '600')
+          .code(204)
+          .send();
+      }
+    });
+  }
+
   app.addHook('onSend', async (_req, reply) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'same-origin');

@@ -72,14 +72,12 @@ Os demais sinais da leitura (público citado no texto, curso sugerido pela pasta
 
 ## Agenda de avisos
 
-Em [packages/core/src/schedule.ts](../packages/core/src/schedule.ts):
+Em [packages/core/src/schedule.ts](../packages/core/src/schedule.ts). Cada evento responde duas perguntas:
 
-| Importância | Avisos automáticos |
-|---|---|
-| Não escolhido | nenhum |
-| Sem aviso (baixa) | nenhum |
-| 1 dia antes (média) | push 1 dia antes, 09h00 |
-| 3 e 1 dia antes (alta) | push 3 dias e 1 dia antes, 09h00 |
+- **Quando** — "No dia", "1 dia antes", "3 dias antes" (qualquer combinação; nenhuma = "Não avisar");
+- **A que horas** — um horário de envio para todos os momentos. Começa **vazio** e é **obrigatório**: evento com aviso e sem horário trava a publicação (`reminder_time_missing`), e o lote (`POST /events/bulk-reminders`) recusa aplicar sem horário.
+
+Se o evento tem horário e o aviso "no dia" sai depois dele, aparece o alerta `reminder_after_start` (não trava). O campo `importance` continua existindo para compatibilidade e é derivado: sem momentos = `low`, 1 momento = `medium`, 2 ou mais = `high`.
 
 - Fuso **America/Sao_Paulo**, resolvido pelo `Intl` (continua certo se houver horário de verão).
 - Períodos: a antecedência conta do início ou do fim. O sistema sugere (fim para prazos e "último dia"); no editor a pessoa escolhe, e na classificação em lote a sugestão é aplicada com aviso explícito na confirmação. Listas de datas: antes de cada data ou só antes da primeira.

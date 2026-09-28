@@ -155,20 +155,55 @@ function leadPhrase(days: number): string {
 }
 
 export function offsetLabel(o: ReminderOffset): string {
-  const when = o.daysBefore === 0 ? 'No dia' : o.daysBefore === 1 ? '1 dia antes' : `${o.daysBefore} dias antes`;
-  return `${when}, às ${o.time.replace(':', 'h')}`;
+  return o.time ? `${momentLabel(o.daysBefore)}, às ${o.time.replace(':', 'h')}` : `${momentLabel(o.daysBefore)}, sem horário`;
 }
 
 /** Por que um evento não gera lembrete — ou null se gera. */
 export function reminderBlockReason(event: CalendarEvent): string | null {
-  if (event.importance === 'unset') return 'Importância não definida';
-  if (event.importance === 'low') return 'Importância baixa: sem aviso automático';
+  if (event.importance === 'unset') return 'Aviso ainda não escolhido';
+  if (event.importance === 'low') return 'Sem aviso para este evento';
   if (!event.notification.enabled) return 'Avisos desligados para este evento';
   if (!event.datesResolved) return 'Data pendente de revisão';
-  if (event.notification.offsets.length === 0) return 'Nenhuma antecedência configurada';
+  if (event.notification.offsets.length === 0) return 'Nenhum momento de aviso marcado';
+  if (event.notification.offsets.some((o) => !o.time)) return 'Falta o horário do aviso';
   if (event.dates.kind === 'range' && !event.notification.anchorConfirmed)
-    return 'Âncora do período (início ou fim) ainda não conferida';
+    return 'Falta dizer se o aviso é sobre o começo ou o fim do período';
   return null;
+}
+
+/* -- Momentos de aviso (no dia, 1 dia antes, 3 dias antes…) --------------- */
+
+/** Os momentos oferecidos na tela, em dias de antecedência. */
+export const REMINDER_MOMENTS = [0, 1, 3] as const;
+
+export function momentLabel(daysBefore: number): string {
+  return daysBefore === 0 ? 'No dia' : daysBefore === 1 ? '1 dia antes' : `${daysBefore} dias antes`;
+}
+
+/** Importância derivada dos momentos: guardada para compatibilidade da API e do portal. */
+export function importanceForMoments(days: readonly number[]): Importance {
+  if (!days.length) return 'low';
+  return days.length === 1 ? 'medium' : 'high';
+}
+
+/**
+ * Define os avisos de um evento: os dias de antecedência e UM horário de envio
+ * para todos. Horário vazio é aceito aqui, mas trava a publicação.
+ */
+export function setReminderMoments(rule: EventNotificationRule, days: readonly number[], time: WallTime | ''): EventNotificationRule {
+  const unique = [...new Set(days)].filter((d) => Number.isInteger(d) && d >= 0 && d <= 60).sort((a, b) => b - a);
+  return {
+    ...rule,
+    enabled: unique.length > 0,
+    offsets: unique.map((d) => ({ id: `d${d}`, daysBefore: d, time })),
+    customized: true,
+  };
+}
+
+/** Horário de envio comum aos avisos ('' se não informado ou se diferem). */
+export function reminderTime(rule: EventNotificationRule): WallTime | '' {
+  const times = [...new Set(rule.offsets.map((o) => o.time))];
+  return times.length === 1 ? times[0] : '';
 }
 
 export function planEventReminders(event: CalendarEvent, ctx: PlanContext): PlannedReminder[] {
@@ -178,6 +213,7 @@ export function planEventReminders(event: CalendarEvent, ctx: PlanContext): Plan
 
   for (const occ of reminderOccurrences(event)) {
     for (const offset of event.notification.offsets) {
+      if (!offset.time) continue;
       const sendDate = addDays(occ.date, -offset.daysBefore);
       const sendAt = wallTimeToInstant(sendDate, offset.time);
       if (new Date(sendAt).getTime() <= ctx.now.getTime()) continue; // sem aviso retroativo

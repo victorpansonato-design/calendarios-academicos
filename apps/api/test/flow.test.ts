@@ -116,6 +116,35 @@ describe('conferência e publicação', () => {
     await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [dp.id], importance: 'unset' });
   });
 
+  it('aviso em lote exige horário; com horário, os momentos valem para todos', async () => {
+    const d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
+    const one = d.events.find((e) => e.dates.label === '17/10')!;
+    const noTime = await t.api('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [one.id], days: [0, 1], time: null });
+    expect(noTime.status).toBe(400);
+    const ok = (await t.api<Detail>('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [one.id], days: [0, 1], time: '07:00' })).body;
+    const after = ok.events.find((e) => e.id === one.id)!;
+    expect(after.notification.offsets.map((o) => [o.daysBefore, o.time])).toEqual([
+      [1, '07:00'],
+      [0, '07:00'],
+    ]);
+    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [one.id], days: [], time: null });
+    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [one.id], importance: 'unset' });
+  });
+
+  it('evento com aviso marcado e horário vazio trava a publicação', async () => {
+    const d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
+    const one = d.events.find((e) => e.dates.label === '17/10')!;
+    await t.api('PATCH', `/api/calendars/${calendarId}/events/${one.id}`, {
+      ...one,
+      importance: 'medium',
+      notification: { ...one.notification, enabled: true, customized: true, offsets: [{ id: 'd1', daysBefore: 1, time: '' }] },
+    });
+    const blocked = await t.api<{ detail: { blockers: { issue: { code: string } }[] } }>('POST', `/api/calendars/${calendarId}/publish`, { confirm: true });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.detail.blockers.map((b) => b.issue.code)).toContain('reminder_time_missing');
+    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [one.id], importance: 'unset' });
+  });
+
   it('só o que é perigoso trava: período com aviso sem dizer se conta do início ou do fim', async () => {
     let d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
     // logo após a importação: nada trava (aviso não escolhido = nenhum aviso sai)

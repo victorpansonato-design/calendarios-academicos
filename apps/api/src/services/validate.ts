@@ -104,7 +104,9 @@ function offsets(v: unknown): ReminderOffset[] {
     const id = str(o.id, 'o identificador do lembrete', 40) || `c${i + 1}`;
     if (ids.has(id)) throw badRequest('Há dois lembretes com o mesmo identificador.');
     ids.add(id);
-    return { id, daysBefore: days, time: wallTime(o.time, `Horário do lembrete ${i + 1}`) };
+    // horário vazio é aceito (fica salvo como pendência e trava a publicação)
+    const time = o.time === '' || o.time === undefined || o.time === null ? '' : wallTime(o.time, `Horário do aviso ${i + 1}`);
+    return { id, daysBefore: days, time };
   });
 }
 

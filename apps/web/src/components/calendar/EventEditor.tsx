@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { BellRing, ChevronDown, Copy, ExternalLink, Plus, Trash2, X } from 'lucide-react';
-import type { Calendar, CalendarEvent, DateKind, EventInput, EventTime, Importance, ReminderOffset, Shift } from '@calendarios/core';
+import type { Calendar, CalendarEvent, DateKind, EventInput, EventTime, Shift } from '@calendarios/core';
 import {
   EVENT_TYPE_LABEL,
-  applyImportance,
+  REMINDER_MOMENTS,
   defaultNotificationRule,
+  importanceForMoments,
+  momentLabel,
+  reminderTime,
+  setReminderMoments,
   openEventIssues,
   planEventReminders,
   reminderBlockReason,
@@ -20,7 +24,7 @@ import { Chip, Field, Segmented, Select, TextArea, TextInput } from '../ui/Field
 import { Swatch } from './Legend';
 import { api, pdfUrl, type CalendarDetail } from '../../lib/api';
 import { useToast } from '../ui/Toast';
-import { AUDIENCE_GROUPS, IMPORTANCE } from '../../lib/labels';
+import { AUDIENCE_GROUPS } from '../../lib/labels';
 import { when } from '../../lib/format';
 import { collapseVariants } from '../../lib/motion';
 
@@ -129,14 +133,41 @@ export function EventEditor({
     return d;
   };
 
-  /* -- Aviso ------------------------------------------------------------- */
-  const chooseImportance = (v: Importance) =>
+  /* -- Aviso -------------------------------------------------------------
+   * Duas perguntas separadas: QUANDO (no dia / 1 dia antes / 3 dias antes,
+   * pode marcar mais de um) e A QUE HORAS (um horário para todos os avisos,
+   * começa vazio e é obrigatório). */
+  const mode: 'no' | 'yes' | null = draft.importance === 'unset' ? null : draft.importance === 'low' ? 'no' : 'yes';
+  const avisa = mode === 'yes';
+  const moments = draft.notification.offsets.map((o) => o.daysBefore);
+  const sendTime = reminderTime(draft.notification);
+
+  const setMode = (m: 'no' | 'yes') =>
+    setDraft((d) =>
+      m === 'no'
+        ? { ...d, importance: 'low', notification: setReminderMoments(d.notification, [], '') }
+        : {
+            ...d,
+            importance: d.importance === 'medium' || d.importance === 'high' ? d.importance : 'medium',
+            // período: a sugestão (começo/fim) aparece marcada logo abaixo, à vista
+            notification: { ...d.notification, enabled: true, customized: true, anchorConfirmed: d.dates.kind === 'range' ? true : d.notification.anchorConfirmed },
+          },
+    );
+
+  const toggleMoment = (day: number) =>
     setDraft((d) => {
-      const n = applyImportance(d.notification, v);
-      // período: a sugestão (início/fim) já vem marcada; escolher o aviso aqui, vendo a pergunta, conta como conferido
-      return { ...d, importance: v, notification: d.dates.kind === 'range' ? { ...n, anchorConfirmed: true } : n };
+      const cur = d.notification.offsets.map((o) => o.daysBefore);
+      const next = cur.includes(day) ? cur.filter((x) => x !== day) : [...cur, day];
+      const n = setReminderMoments(d.notification, next, reminderTime(d.notification));
+      return { ...d, importance: next.length ? importanceForMoments(next) : 'medium', notification: { ...n, enabled: true } };
     });
-  const avisa = draft.importance === 'medium' || draft.importance === 'high';
+
+  const setSendTime = (t: string) =>
+    setDraft((d) => ({ ...d, notification: { ...setReminderMoments(d.notification, d.notification.offsets.map((o) => o.daysBefore), t), enabled: true } }));
+
+  // aviso do dia que sairia depois do começo do evento
+  const firstEventTime = [...draft.times].map((t) => t.time).sort()[0];
+  const lateSameDay = Boolean(avisa && moments.includes(0) && sendTime && firstEventTime && sendTime >= firstEventTime);
 
   const previewEvent = useMemo(() => {
     if (!datesValid) return null;
@@ -151,6 +182,8 @@ export function EventEditor({
     setError(null);
     if (!draft.title.trim()) return setError('Escreva o título do evento.');
     if (!datesValid) return setError('Confira a data: um período precisa terminar depois de começar.');
+    if (avisa && !moments.length) return setError('Marque quando avisar: no dia, 1 dia antes ou 3 dias antes.');
+    if (avisa && !sendTime) return setError('Informe o horário do aviso.');
     setSaving(true);
     try {
       const input = { ...draft, dates: normalizedDates() };
@@ -260,45 +293,81 @@ export function EventEditor({
 
           <Block title="Avisar os alunos?">
             <div>
-            <Segmented<Importance>
-              layoutId="editor-importance"
-              value={draft.importance}
-              onChange={chooseImportance}
-              options={(['low', 'medium', 'high'] as Importance[]).map((v) => ({ value: v, label: v === 'low' ? 'Não avisar' : IMPORTANCE[v].short }))}
-            />
+              <Segmented<'no' | 'yes'>
+                layoutId="editor-reminder-mode"
+                value={(mode ?? '') as 'no'}
+                onChange={setMode}
+                options={[
+                  { value: 'no', label: 'Não avisar' },
+                  { value: 'yes', label: 'Avisar' },
+                ]}
+              />
             </div>
-            <p className="text-[12px] text-ink-3">{IMPORTANCE[draft.importance].help}</p>
-
-            {avisa && draft.dates.kind === 'range' && (
-              <div className="space-y-2">
-                <p className="text-[12px] font-medium text-ink">O aviso é sobre…</p>
-                <Segmented
-                  layoutId="editor-anchor"
-                  value={draft.notification.anchorConfirmed ? (draft.notification.anchor === 'end' ? 'end' : 'start') : ('' as 'start')}
-                  onChange={(v) => setNotif({ anchor: v, anchorConfirmed: true })}
-                  options={[
-                    { value: 'start', label: 'o começo do período' },
-                    { value: 'end', label: 'o fim do prazo' },
-                  ]}
-                />
-              </div>
-            )}
+            {mode === null && <p className="text-[12px] text-warn-ink">Escolha uma das opções. Enquanto isso, nenhum aviso sai para este evento.</p>}
+            {mode === 'no' && <p className="text-[12px] text-ink-3">Os alunos veem o evento no calendário, mas não recebem aviso.</p>}
 
             {avisa && (
-              <div className="rounded-lg bg-surface-2 p-3.5">
-                <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-ink">
-                  <BellRing className="h-3.5 w-3.5 text-ink-3" /> Os alunos vão receber
-                </p>
-                {preview.length ? (
-                  <ul className="space-y-1.5">
-                    {preview.map((p) => (
-                      <li key={p.idempotencyKey} className="text-[12px] text-ink-2">
-                        <span className="font-mono">{when(p.sendAt)}</span> — {p.body}
-                      </li>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-[12px] font-medium text-ink">
+                    Quando? <span className="font-normal text-ink-3">Pode marcar mais de um.</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {REMINDER_MOMENTS.map((d) => (
+                      <Chip key={d} active={moments.includes(d)} onClick={() => toggleMoment(d)}>
+                        {momentLabel(d)}
+                      </Chip>
                     ))}
-                  </ul>
-                ) : (
-                  <p className="text-[12px] text-ink-3">{blockReason ?? 'A data de aviso já passou — não há aviso atrasado.'}</p>
+                  </div>
+                </div>
+
+                <Field
+                  label="Horário do aviso"
+                  required
+                  error={!sendTime ? 'Obrigatório. Sem o horário, o calendário não pode ser publicado.' : undefined}
+                  help="Horário de Brasília. Vale para todos os avisos marcados acima."
+                >
+                  {(id) => <TextInput id={id} type="time" value={sendTime} onChange={(e) => setSendTime(e.target.value)} className="max-w-[160px]" />}
+                </Field>
+
+                {lateSameDay && (
+                  <Callout tone="warn" title="O aviso do dia sai depois do começo">
+                    O evento começa às {firstEventTime.replace(':', 'h')}, e o aviso do dia está para as {sendTime.replace(':', 'h')}. Os alunos seriam avisados depois do início.
+                  </Callout>
+                )}
+
+                {draft.dates.kind === 'range' && (
+                  <div className="space-y-2">
+                    <p className="text-[12px] font-medium text-ink">O aviso é sobre…</p>
+                    <Segmented
+                      layoutId="editor-anchor"
+                      value={draft.notification.anchorConfirmed ? (draft.notification.anchor === 'end' ? 'end' : 'start') : ('' as 'start')}
+                      onChange={(v) => setNotif({ anchor: v, anchorConfirmed: true })}
+                      options={[
+                        { value: 'start', label: 'o começo do período' },
+                        { value: 'end', label: 'o fim do prazo' },
+                      ]}
+                    />
+                  </div>
+                )}
+
+                {moments.length > 0 && sendTime && (
+                  <div className="rounded-lg bg-surface-2 p-3.5">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-ink">
+                      <BellRing className="h-3.5 w-3.5 text-ink-3" /> Os alunos vão receber
+                    </p>
+                    {preview.length ? (
+                      <ul className="space-y-1.5">
+                        {preview.map((p) => (
+                          <li key={p.idempotencyKey} className="text-[12px] text-ink-2">
+                            <span className="font-mono">{when(p.sendAt)}</span> — {p.body}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[12px] text-ink-3">{blockReason ?? 'As datas de aviso já passaram — não há aviso atrasado.'}</p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -418,30 +487,9 @@ export function EventEditor({
                     </Block>
 
                     {avisa && (
-                      <Block title="Ajustar o aviso">
-                        {draft.notification.offsets.map((o, i) => (
-                          <div key={o.id} className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
-                            <TextInput
-                              type="number"
-                              min={0}
-                              max={60}
-                              aria-label={`Dias antes, aviso ${i + 1}`}
-                              value={o.daysBefore}
-                              onChange={(e) => setNotif({ customized: true, offsets: draft.notification.offsets.map((x, j) => (j === i ? { ...x, daysBefore: Math.max(0, Math.min(60, Number(e.target.value))) } : x)) })}
-                              className="w-20"
-                            />
-                            dia(s) antes, às
-                            <TextInput type="time" aria-label={`Horário, aviso ${i + 1}`} value={o.time} onChange={(e) => setNotif({ customized: true, offsets: draft.notification.offsets.map((x, j) => (j === i ? { ...x, time: e.target.value } : x)) })} className="w-32" />
-                            <Button size="sm" variant="ghost" square aria-label={`Remover aviso ${i + 1}`} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => setNotif({ customized: true, offsets: draft.notification.offsets.filter((_, j) => j !== i) })} />
-                          </div>
-                        ))}
-                        {draft.notification.offsets.length < 6 && (
-                          <Button size="xs" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setNotif({ customized: true, offsets: [...draft.notification.offsets, { id: `c${Date.now().toString(36)}`, daysBefore: 2, time: '09:00' } as ReminderOffset] })}>
-                            Adicionar outro aviso
-                          </Button>
-                        )}
-                        <Field label="Título do aviso">{(id) => <TextInput id={id} maxLength={120} value={draft.notification.pushTitle} onChange={(e) => setNotif({ pushTitle: e.target.value })} />}</Field>
-                        <Field label="Texto do aviso" help="As partes entre {{ }} são preenchidas sozinhas (título, data, 'amanhã'…).">
+                      <Block title="Texto do aviso">
+                        <Field label="Título">{(id) => <TextInput id={id} maxLength={120} value={draft.notification.pushTitle} onChange={(e) => setNotif({ pushTitle: e.target.value })} />}</Field>
+                        <Field label="Mensagem" help="As partes entre {{ }} são preenchidas sozinhas (título, data, 'amanhã'…).">
                           {(id) => <TextArea id={id} rows={2} maxLength={500} value={draft.notification.pushBody} onChange={(e) => setNotif({ pushBody: e.target.value })} />}
                         </Field>
                       </Block>

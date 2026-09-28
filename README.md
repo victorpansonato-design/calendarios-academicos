@@ -49,6 +49,15 @@ Todas estão comentadas em [.env.example](.env.example). Sem uma credencial, a f
 | `PUBLIC_API_KEY` | protege a leitura pública (portal/app) | leitura pública aberta |
 | `MAX_FILE_MB`, `MAX_BATCH_MB`, `MAX_ZIP_ENTRIES`, `MAX_UNZIPPED_MB` | limites de upload | 25 / 300 / 500 / 600 |
 
+## Publicar (Vercel + servidor da API)
+
+A **interface** pode ir para a Vercel; a **API não**, porque precisa de um processo sempre ligado (fila de leitura e agendador de avisos) e de disco (banco e PDFs). Hospede a API num servidor com disco persistente (VM, Render, Railway, Fly.io…).
+
+1. **API** (servidor): `npm ci && npm start`, com `DATA_DIR` num disco persistente e `CORS_ORIGINS=https://<seu-projeto>.vercel.app`.
+2. **Interface** (Vercel): Root Directory = `apps/web` (o `apps/web/vercel.json` já define build e saída) e a variável `VITE_API_URL=https://<endereço-da-api>`. Redeploy depois de mudar a variável: ela entra no build.
+
+Alternativa sem Vercel: `npm run build && npm start` num servidor só — a API já serve a interface na mesma porta, sem precisar de CORS nem de `VITE_API_URL`.
+
 ## Estrutura
 
 ```

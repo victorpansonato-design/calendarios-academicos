@@ -44,11 +44,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Endereço da API. Vazio = mesma origem (desenvolvimento e implantação única).
+ * Com a interface na Vercel e a API em outro servidor, defina VITE_API_URL
+ * (ex.: https://calendarios-api.anchieta.br) no build da interface.
+ */
+export const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = getToken();
   let res: Response;
   try {
-    res = await fetch(path, {
+    res = await fetch(API_BASE + path, {
       method,
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
@@ -60,7 +67,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(0, 'Sem conexão com o servidor. Confira sua internet e tente de novo.');
   }
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as unknown) : undefined;
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // resposta que não é da API (ex.: página 404 da hospedagem)
+    throw new ApiError(res.status, 'O servidor do sistema não respondeu. Se esta é a versão publicada, confira se a API está no ar e se VITE_API_URL aponta para ela.');
+  }
   if (res.status === 401 && !path.startsWith('/api/auth/login')) {
     clearSession();
     throw new ApiError(401, 'Sua sessão expirou. Entre novamente.');
@@ -86,7 +99,7 @@ function uploadFiles(files: { file: File; path: string }[], onProgress: (p: Uplo
     form.append('manifest', JSON.stringify(files.map((f, i) => ({ field: `f${i}`, path: f.path }))));
     files.forEach((f, i) => form.append(`f${i}`, f.file, f.file.name));
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/imports');
+    xhr.open('POST', `${API_BASE}/api/imports`);
     const token = getToken();
     if (token) xhr.setRequestHeader('authorization', `Bearer ${token}`);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress({ loaded: e.loaded, total: e.total });
@@ -128,6 +141,8 @@ export const api = {
     duplicateEvent: (id: string, eventId: string) => request<CalendarDetail & { event: CalendarEvent }>('POST', `/api/calendars/${id}/events/${eventId}/duplicate`),
     bulkImportance: (id: string, eventIds: string[], importance: Importance) =>
       request<CalendarDetail & { changed: number }>('POST', `/api/calendars/${id}/events/bulk-importance`, { eventIds, importance }),
+    bulkReminders: (id: string, eventIds: string[], days: number[], time: string | null) =>
+      request<CalendarDetail & { changed: number }>('POST', `/api/calendars/${id}/events/bulk-reminders`, { eventIds, days, time }),
     ack: (id: string, eventId: string | null, code: IssueCode, undo = false) => request<CalendarDetail>('POST', `/api/calendars/${id}/review/ack`, { eventId, code, undo }),
     submit: (id: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/submit`),
     returnToDraft: (id: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/return`),
@@ -171,11 +186,11 @@ export const api = {
 /** Link do PDF original, aberto no visualizador do navegador na página certa. */
 export function pdfUrl(fileId: string, page?: number): string {
   const token = getToken() ?? '';
-  return `/api/files/${fileId}/content?token=${encodeURIComponent(token)}${page ? `#page=${page}` : ''}`;
+  return `${API_BASE}/api/files/${fileId}/content?token=${encodeURIComponent(token)}${page ? `#page=${page}` : ''}`;
 }
 
 export async function fetchPdfBytes(fileId: string): Promise<ArrayBuffer> {
-  const res = await fetch(`/api/files/${fileId}/content`, { headers: { authorization: `Bearer ${getToken() ?? ''}` } });
+  const res = await fetch(`${API_BASE}/api/files/${fileId}/content`, { headers: { authorization: `Bearer ${getToken() ?? ''}` } });
   if (!res.ok) throw new ApiError(res.status, 'Não foi possível abrir o PDF original.');
   return res.arrayBuffer();
 }

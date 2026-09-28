@@ -44,6 +44,12 @@ export function loadConfig() {
 
     demoMode: bool('DEMO_MODE', false),
 
+    /** Origens da interface quando ela está em outro domínio (ex.: Vercel), separadas por vírgula. */
+    corsOrigins: str('CORS_ORIGINS')
+      .split(',')
+      .map((o) => o.trim().replace(/\/$/, ''))
+      .filter(Boolean),
+
     auth: {
       /** `dev`: o botão "Entrar com Microsoft" entra direto (sem Outlook). `entra`: a TI liga o OIDC. */
       mode: (str('AUTH_MODE', 'dev') === 'entra' ? 'entra' : 'dev') as 'dev' | 'entra',

@@ -20,7 +20,10 @@ import {
   defaultNotificationRule,
   emptyReview,
   formatDates,
+  importanceForMoments,
+  momentLabel,
   normalizeForCompare,
+  setReminderMoments,
   suggestAnchor,
 } from '@calendarios/core';
 import type { AppContext } from './context';
@@ -356,6 +359,32 @@ export function bulkImportance(ctx: AppContext, calendarId: string, eventIds: st
       n += 1;
     }
     if (n) commitEdit(ctx, c, actor, `Importância "${{ unset: 'não definida', low: 'baixa', medium: 'média', high: 'alta' }[importance]}" aplicada a ${n} evento(s)`, 'event.bulk_importance', { eventIds, importance });
+    return n;
+  });
+}
+
+/**
+ * Avisos em lote: os mesmos momentos (dias de antecedência) e o mesmo horário
+ * para todos os eventos escolhidos. Sem momentos = "Não avisar".
+ */
+export function bulkReminders(ctx: AppContext, calendarId: string, eventIds: string[], days: number[], time: string, actor: User): number {
+  return ctx.db.tx(() => {
+    const c = requireEditable(ctx, calendarId);
+    if (days.length && !time) throw badRequest('Informe o horário do aviso.');
+    const ids = new Set(eventIds);
+    const importance = importanceForMoments(days);
+    let n = 0;
+    for (const e of repo.listEvents(ctx.db, calendarId)) {
+      if (!ids.has(e.id)) continue;
+      let notification = setReminderMoments(e.notification, days, days.length ? time : '');
+      // períodos seguem a sugestão (começo, ou fim quando é prazo) — avisado na confirmação
+      if (e.dates.kind === 'range' && days.length) notification = { ...notification, anchorConfirmed: true };
+      if (e.dates.kind === 'list' && !['each', 'first'].includes(notification.anchor)) notification = { ...notification, anchor: 'each' };
+      repo.saveEvent(ctx.db, { ...e, importance, notification, updatedAt: now(ctx), updatedBy: actor.name });
+      n += 1;
+    }
+    const what = days.length ? `${days.map(momentLabel).join(', ')}, às ${time.replace(':', 'h')}` : 'não avisar';
+    if (n) commitEdit(ctx, c, actor, `Aviso "${what}" aplicado a ${n} evento(s)`, 'event.bulk_reminders', { eventIds, days, time });
     return n;
   });
 }

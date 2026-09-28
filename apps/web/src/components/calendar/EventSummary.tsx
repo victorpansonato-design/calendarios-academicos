@@ -4,7 +4,7 @@ import { EVENT_TYPE_LABEL } from '@calendarios/core';
 import { Pill } from '../ui/Badges';
 import { Swatch } from './Legend';
 import { datesText } from '../../lib/format';
-import { IMPORTANCE } from '../../lib/labels';
+import { reminderSummary } from '../../lib/labels';
 
 /* Um evento como o sistema o entendeu: título, datas, horários por turno,
    local, links, ressalvas e público — cada um no seu campo. */
@@ -20,8 +20,8 @@ export function EventMeta({ event, legend }: { event: CalendarEvent; legend: Leg
         </span>
       )}
       <Pill dot={false}>{EVENT_TYPE_LABEL[event.type]}</Pill>
-      <Pill tone={IMPORTANCE[event.importance].tone} solid={event.importance === 'unset'}>
-        {IMPORTANCE[event.importance].label}
+      <Pill tone={reminderSummary(event).tone} solid={reminderSummary(event).attention}>
+        Aviso: {reminderSummary(event).text}
       </Pill>
       {event.modifiedFromSource && event.origin === 'import' && <Pill dot={false}>Alterado em relação ao PDF</Pill>}
       {event.origin === 'manual' && <Pill dot={false}>Incluído manualmente</Pill>}

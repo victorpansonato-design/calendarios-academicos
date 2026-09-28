@@ -63,7 +63,7 @@ describe('importância → lembretes', () => {
   it('não definida: nenhum aviso', () => {
     const e = event('25/08', 'unset');
     expect(planEventReminders(e, ctx)).toEqual([]);
-    expect(reminderBlockReason(e)).toBe('Importância não definida');
+    expect(reminderBlockReason(e)).toBe('Aviso ainda não escolhido');
   });
 
   it('média: um push 1 dia antes', () => {
@@ -81,7 +81,7 @@ describe('importância → lembretes', () => {
   it('período sem âncora conferida não agenda nada', () => {
     const e = event('28/09 a 09/10', 'high');
     expect(planEventReminders(e, ctx)).toEqual([]);
-    expect(reminderBlockReason(e)).toContain('Âncora');
+    expect(reminderBlockReason(e)).toContain('começo ou o fim');
   });
 
   it('período com âncora no fim conta a partir do fim', () => {
