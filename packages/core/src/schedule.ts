@@ -1,0 +1,244 @@
+import type {
+  CalendarEvent,
+  EventNotificationRule,
+  Importance,
+  ISODate,
+  ISOInstant,
+  NotificationJob,
+  PlannedReminder,
+  ReminderDiff,
+  ReminderOffset,
+  WallTime,
+} from './types';
+import { TIME_ZONE } from './types';
+import { addDays, formatDates } from './dates';
+import { DEFAULT_REMINDER_BODY, DEFAULT_REMINDER_TITLE, renderTemplate } from './templates';
+
+/* ==========================================================================
+   Agenda de avisos
+   --------------------------------------------------------------------------
+   Importância → lembretes:
+
+     Baixa  — nenhum aviso automático
+     Média  — 1 push, 1 dia antes
+     Alta   — 2 pushes, 3 dias e 1 dia antes
+
+   Garantias deste módulo (todas testadas):
+
+     · Horário de parede sempre em America/Sao_Paulo, convertido para UTC aqui
+       e só aqui. O fuso é resolvido pelo Intl, então se o horário de verão
+       voltar a existir, a conta continua certa.
+     · Nada é agendado no passado. Um lembrete cujo horário já passou não é
+       criado — não existe aviso retroativo.
+     · Importância não definida, aviso desligado, data pendente ou âncora de
+       período ainda não conferida = zero lembretes.
+     · Cada lembrete tem uma chave de idempotência estável. Replanejar o mesmo
+       calendário produz as mesmas chaves, e o banco rejeita a segunda cópia.
+   ========================================================================== */
+
+export const DEFAULT_REMINDER_TIME: WallTime = '09:00';
+
+export function defaultOffsets(importance: Importance): ReminderOffset[] {
+  if (importance === 'medium') return [{ id: 'd1', daysBefore: 1, time: DEFAULT_REMINDER_TIME }];
+  if (importance === 'high')
+    return [
+      { id: 'd3', daysBefore: 3, time: DEFAULT_REMINDER_TIME },
+      { id: 'd1', daysBefore: 1, time: DEFAULT_REMINDER_TIME },
+    ];
+  return [];
+}
+
+export function defaultNotificationRule(anchor: EventNotificationRule['anchor']): EventNotificationRule {
+  return {
+    enabled: false,
+    offsets: [],
+    anchor,
+    anchorConfirmed: false,
+    pushTitle: DEFAULT_REMINDER_TITLE,
+    pushBody: DEFAULT_REMINDER_BODY,
+    customized: false,
+  };
+}
+
+/**
+ * Aplica uma importância. Se a equipe já personalizou os lembretes, eles são
+ * mantidos; senão, voltam ao padrão da importância escolhida.
+ */
+export function applyImportance(rule: EventNotificationRule, importance: Importance): EventNotificationRule {
+  const auto = importance === 'medium' || importance === 'high';
+  if (rule.customized && auto) return { ...rule, enabled: rule.enabled };
+  return { ...rule, enabled: auto, offsets: defaultOffsets(importance), customized: false };
+}
+
+/* -- Fuso horário --------------------------------------------------------- */
+
+const partsFormatter = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(tz: string): Intl.DateTimeFormat {
+  let f = partsFormatter.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    partsFormatter.set(tz, f);
+  }
+  return f;
+}
+
+/** Deslocamento do fuso (minutos) num instante: São Paulo = -180. */
+export function tzOffsetMinutes(instant: Date, tz: string = TIME_ZONE): number {
+  const parts = Object.fromEntries(formatterFor(tz).formatToParts(instant).map((p) => [p.type, p.value]));
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return Math.round((asUtc - instant.getTime()) / 60000);
+}
+
+/** "2026-09-27" + "09:00" em São Paulo → instante UTC. */
+export function wallTimeToInstant(date: ISODate, time: WallTime, tz: string = TIME_ZONE): ISOInstant {
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  const naive = Date.UTC(y, m - 1, d, hh, mm);
+  // duas passadas resolvem fronteiras de horário de verão
+  let offset = tzOffsetMinutes(new Date(naive), tz);
+  offset = tzOffsetMinutes(new Date(naive - offset * 60000), tz);
+  return new Date(naive - offset * 60000).toISOString();
+}
+
+/** Instante UTC → data e hora de parede em São Paulo. */
+export function instantToWall(instant: ISOInstant | Date, tz: string = TIME_ZONE): { date: ISODate; time: WallTime } {
+  const d = typeof instant === 'string' ? new Date(instant) : instant;
+  const parts = Object.fromEntries(formatterFor(tz).formatToParts(d).map((p) => [p.type, p.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+/* -- Planejamento --------------------------------------------------------- */
+
+export interface PlanContext {
+  calendarId: string;
+  calendarTitle: string;
+  now: Date;
+}
+
+export function reminderKey(calendarId: string, eventUid: string, offsetId: string, occurrence: string): string {
+  return `rem:${calendarId}:${eventUid}:${offsetId}:${occurrence}`;
+}
+
+/** Datas de referência para os lembretes, conforme a âncora. */
+export function reminderOccurrences(event: Pick<CalendarEvent, 'dates' | 'notification'>): { date: ISODate; key: string; milestone: 'começa' | 'termina' | 'acontece' }[] {
+  const { dates, notification } = event;
+  if (dates.kind === 'single') return [{ date: dates.start, key: 'main', milestone: 'acontece' }];
+  if (dates.kind === 'range')
+    return notification.anchor === 'end'
+      ? [{ date: dates.end, key: 'main', milestone: 'termina' }]
+      : [{ date: dates.start, key: 'main', milestone: 'começa' }];
+  if (notification.anchor === 'first') return [{ date: dates.dates[0], key: 'main', milestone: 'acontece' }];
+  return dates.dates.map((d) => ({ date: d, key: d, milestone: 'acontece' as const }));
+}
+
+function leadPhrase(days: number): string {
+  if (days === 0) return 'hoje';
+  if (days === 1) return 'amanhã';
+  return `em ${days} dias`;
+}
+
+export function offsetLabel(o: ReminderOffset): string {
+  const when = o.daysBefore === 0 ? 'No dia' : o.daysBefore === 1 ? '1 dia antes' : `${o.daysBefore} dias antes`;
+  return `${when}, às ${o.time.replace(':', 'h')}`;
+}
+
+/** Por que um evento não gera lembrete — ou null se gera. */
+export function reminderBlockReason(event: CalendarEvent): string | null {
+  if (event.importance === 'unset') return 'Importância não definida';
+  if (event.importance === 'low') return 'Importância baixa: sem aviso automático';
+  if (!event.notification.enabled) return 'Avisos desligados para este evento';
+  if (!event.datesResolved) return 'Data pendente de revisão';
+  if (event.notification.offsets.length === 0) return 'Nenhuma antecedência configurada';
+  if (event.dates.kind === 'range' && !event.notification.anchorConfirmed)
+    return 'Âncora do período (início ou fim) ainda não conferida';
+  return null;
+}
+
+export function planEventReminders(event: CalendarEvent, ctx: PlanContext): PlannedReminder[] {
+  if (reminderBlockReason(event)) return [];
+  const out: PlannedReminder[] = [];
+  const horario = event.times.map((t) => (t.shift ? `${t.shift} ${t.time.replace(':', 'h')}` : t.time.replace(':', 'h'))).join(' · ');
+
+  for (const occ of reminderOccurrences(event)) {
+    for (const offset of event.notification.offsets) {
+      const sendDate = addDays(occ.date, -offset.daysBefore);
+      const sendAt = wallTimeToInstant(sendDate, offset.time);
+      if (new Date(sendAt).getTime() <= ctx.now.getTime()) continue; // sem aviso retroativo
+
+      const values = {
+        'evento.titulo': event.title,
+        'evento.data': event.dates.kind === 'list' && occ.key !== 'main' ? formatDates({ ...event.dates, kind: 'single', start: occ.date, end: occ.date }) : formatDates(event.dates),
+        'evento.antecedencia': leadPhrase(offset.daysBefore),
+        'evento.marco': occ.milestone,
+        'evento.horario': horario,
+        'calendario.nome': ctx.calendarTitle,
+      };
+      out.push({
+        idempotencyKey: reminderKey(ctx.calendarId, event.uid, offset.id, occ.key),
+        calendarId: ctx.calendarId,
+        eventUid: event.uid,
+        offsetId: offset.id,
+        occurrence: occ.date,
+        sendAt,
+        title: renderTemplate(event.notification.pushTitle || DEFAULT_REMINDER_TITLE, values).text,
+        body: renderTemplate(event.notification.pushBody || DEFAULT_REMINDER_BODY, values).text,
+        channel: 'push',
+        offsetLabel: offsetLabel(offset),
+        eventTitle: event.title,
+      });
+    }
+  }
+  return out;
+}
+
+export function planCalendarReminders(events: CalendarEvent[], ctx: PlanContext): PlannedReminder[] {
+  return events.flatMap((e) => planEventReminders(e, ctx)).sort((a, b) => a.sendAt.localeCompare(b.sendAt));
+}
+
+/**
+ * Compara os lembretes ativos (agendados ou aguardando configuração) com o
+ * plano da versão nova. Envios já feitos nunca entram aqui — o passado não muda.
+ */
+export function diffReminders(active: NotificationJob[], planned: PlannedReminder[]): ReminderDiff {
+  const byKey = new Map(planned.map((p) => [p.idempotencyKey, p]));
+  const plannedUids = new Set(planned.map((p) => p.eventUid));
+  const diff: ReminderDiff = { create: [], update: [], cancel: [], unchanged: 0 };
+
+  for (const job of active) {
+    const next = byKey.get(job.idempotencyKey);
+    if (!next) {
+      diff.cancel.push({
+        job,
+        reason: job.eventUid && plannedUids.has(job.eventUid) ? 'Data ou antecedência alterada' : 'Evento removido, sem aviso ou com data já passada',
+      });
+      continue;
+    }
+    byKey.delete(job.idempotencyKey);
+    if (next.sendAt !== job.sendAt || next.title !== job.title || next.body !== job.body) diff.update.push({ before: job, after: next });
+    else diff.unchanged += 1;
+  }
+  diff.create = [...byKey.values()];
+  return diff;
+}
+
+/** Chave de entrega: muda se o horário mudar, para o provedor não descartar um reagendamento. */
+export function deliveryKey(idempotencyKey: string, sendAt: ISOInstant): string {
+  return `${idempotencyKey}@${sendAt}`;
+}

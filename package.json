@@ -1,0 +1,28 @@
+{
+  "name": "calendarios-academicos",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Gestão de calendários acadêmicos da UniAnchieta — importação de PDFs, conferência, edição, publicação e avisos.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm run dev -w @calendarios/api",
+    "dev:web": "npm run dev -w @calendarios/web",
+    "build": "npm run lint && npm run build -w @calendarios/web",
+    "lint": "npm run lint -w @calendarios/core && npm run lint -w @calendarios/api && npm run lint -w @calendarios/web",
+    "test": "vitest run",
+    "start": "npm run start -w @calendarios/api"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.8.2",
+    "vitest": "^3.2.4"
+  }
+}

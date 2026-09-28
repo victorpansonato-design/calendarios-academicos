@@ -1,0 +1,13 @@
+{
+  "name": "@calendarios/core",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Domínio puro: tipos/contratos, datas, campos, validação, agenda de avisos. Sem I/O.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc -p tsconfig.json --noEmit"
+  }
+}

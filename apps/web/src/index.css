@@ -1,0 +1,392 @@
+/* ==========================================================================
+   UniAnchieta · Design System (DESIGN_SYSTEM.md §3, §4 e §7, na íntegra)
+   --------------------------------------------------------------------------
+   Nenhum componente escreve hex. Toda cor resolve por token; o dark mode é
+   uma troca de tokens, não um segundo conjunto de classes.
+
+   ÚNICA exceção funcional deste sistema: as cores da LEGENDA do calendário,
+   que vêm do PDF institucional e identificam categorias de evento. Elas são
+   dado (vivem no banco), não estilo — ver "Exceção funcional" no fim.
+   ========================================================================== */
+
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* -- Superfícies: a hierarquia visual inteira, feita de quatro cinzas ---- */
+  --canvas: #f3f4f6;
+  --canvas-subtle: #eef0f2;
+  --surface: #ffffff;
+  --surface-2: #eef0f2;
+  --surface-3: #e6e8eb;
+  --surface-hover: #f3f4f6;
+
+  /* -- Divisores (nunca molduras) ----------------------------------------- */
+  --hairline: #e6e8eb;
+  --hairline-strong: #d8dbe0;
+
+  /* -- Escada de texto ---------------------------------------------------- */
+  --ink: #101317;
+  --ink-2: #414852;
+  --ink-3: #6b7280;
+  --ink-4: #9aa1ac;
+
+  /* -- Marca: cirúrgica. Botão primário, nav ativo, arco do donut. -------- */
+  --brand: #00509d;
+  --brand-hover: #003f7d;
+  --brand-2: #00509d;
+  --brand-3: #0f6fc4;
+  --brand-soft: #e8eef5;
+  --brand-soft-2: #dce7f1;
+  --brand-border: #e8eef5;
+  --brand-text: #00457f;
+  --on-brand: #ffffff;
+  /* Azul do wordmark registrado — nunca re-tingido. */
+  --brand-mark: #1567b8;
+
+  /* -- Superfície de ênfase: um passo de contraste, sem matiz, sem grid --- */
+  --band: #eef0f2;
+  --band-2: #e6e8eb;
+  --band-ink: #101317;
+  --band-ink-2: #6b7280;
+  --band-ink-3: #9aa1ac;
+  --band-line: #e6e8eb;
+  --band-inset: #ffffff;
+
+  /* -- Status: cinza → âmbar → âmbar → vermelho. Um vermelho, no fim. ----- */
+  --ok: #6b7280;
+  --ok-ink: #414852;
+  --ok-soft: #eef0f2;
+  --ok-border: #e6e8eb;
+  --warn: #9a7128;
+  --warn-ink: #7d5c1f;
+  --warn-soft: #f5f1e8;
+  --warn-border: #ece3d1;
+  --risk: #a15c07;
+  --risk-ink: #874d05;
+  --risk-soft: #f6f0e7;
+  --risk-border: #eddfc9;
+  --crit: #b42318;
+  --crit-ink: #971d14;
+  --crit-soft: #f8eceb;
+  --crit-border: #f0d5d2;
+  --info: #00509d;
+  --info-soft: #e8eef5;
+  --info-border: #dce7f1;
+
+  /* -- Chrome ------------------------------------------------------------- */
+  --focus: #00509d;
+  --scrim: rgb(16 19 23 / 0.4);
+  --track: #e6e8eb;
+  --skeleton: #eaecf0;
+
+  /* -- Elevação: só overlays ---------------------------------------------- */
+  --shadow-raised: none;
+  --shadow-overlay:
+    0 1px 2px rgb(16 19 23 / 0.06), 0 8px 24px -6px rgb(16 19 23 / 0.12),
+    0 24px 56px -12px rgb(16 19 23 / 0.14);
+  --shadow-band: none;
+
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: #0c0d0f;
+  --canvas-subtle: #101215;
+  --surface: #16181b;
+  --surface-2: #1d1f23;
+  --surface-3: #24272c;
+  --surface-hover: #1f2226;
+
+  --hairline: #262a2f;
+  --hairline-strong: #343941;
+
+  --ink: #f2f4f6;
+  --ink-2: #c3c9d1;
+  --ink-3: #8b929c;
+  --ink-4: #626973;
+
+  --brand: #2b7cc9;
+  --brand-hover: #3b8cd9;
+  --brand-2: #4d9ae0;
+  --brand-3: #35b6ec;
+  --brand-soft: #16222f;
+  --brand-soft-2: #1a2c3d;
+  --brand-border: #16222f;
+  --brand-text: #7fb6e6;
+  --on-brand: #ffffff;
+  --brand-mark: #2b83d4;
+
+  --band: #1d1f23;
+  --band-2: #24272c;
+  --band-ink: #f2f4f6;
+  --band-ink-2: #8b929c;
+  --band-ink-3: #626973;
+  --band-line: #262a2f;
+  --band-inset: #16181b;
+
+  --ok: #8b929c;
+  --ok-ink: #c3c9d1;
+  --ok-soft: #1d1f23;
+  --ok-border: #262a2f;
+  --warn: #b99552;
+  --warn-ink: #d0b17a;
+  --warn-soft: #201c14;
+  --warn-border: #3a3222;
+  --risk: #cd8a45;
+  --risk-ink: #e0a970;
+  --risk-soft: #231a12;
+  --risk-border: #40301f;
+  --crit: #e0554b;
+  --crit-ink: #f08a82;
+  --crit-soft: #241614;
+  --crit-border: #452421;
+  --info: #4d9ae0;
+  --info-soft: #16222f;
+  --info-border: #1a2c3d;
+
+  --focus: #4d9ae0;
+  --scrim: rgb(4 5 7 / 0.66);
+  --track: #262a2f;
+  --skeleton: #1c1f23;
+
+  --shadow-raised: none;
+  --shadow-overlay:
+    0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.6),
+    0 32px 64px -16px rgb(0 0 0 / 0.7);
+  --shadow-band: none;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-subtle: var(--canvas-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-hover: var(--surface-hover);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-2: var(--brand-soft-2);
+  --color-brand-border: var(--brand-border);
+  --color-brand-text: var(--brand-text);
+  --color-on-brand: var(--on-brand);
+
+  --color-band: var(--band);
+  --color-band-2: var(--band-2);
+  --color-band-ink: var(--band-ink);
+  --color-band-ink-2: var(--band-ink-2);
+  --color-band-ink-3: var(--band-ink-3);
+  --color-band-line: var(--band-line);
+  --color-band-inset: var(--band-inset);
+
+  --color-ok: var(--ok);
+  --color-ok-ink: var(--ok-ink);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-border: var(--ok-border);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-border: var(--warn-border);
+  --color-risk: var(--risk);
+  --color-risk-ink: var(--risk-ink);
+  --color-risk-soft: var(--risk-soft);
+  --color-risk-border: var(--risk-border);
+  --color-crit: var(--crit);
+  --color-crit-ink: var(--crit-ink);
+  --color-crit-soft: var(--crit-soft);
+  --color-crit-border: var(--crit-border);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+
+  --color-track: var(--track);
+  --color-skeleton: var(--skeleton);
+  --color-focus: var(--focus);
+
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Dois raios de verdade. `xs`/`sm` só para chip inline e controle miúdo;
+     tudo que é superfície usa 12px — inclusive `lg`, `xl` e `2xl`. */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+  --shadow-band: var(--shadow-band);
+}
+
+@layer base {
+  /* Toda borda que alguém desenhar já nasce hairline — não precisa dizer a cor. */
+  * { border-color: var(--hairline); }
+
+  html {
+    background-color: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;   /* a página não pula quando o scroll aparece */
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3 { letter-spacing: -0.02em; }
+
+  .font-mono, [class*='font-mono'] {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+  }
+
+  button:not(:disabled) { cursor: pointer; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+  :focus:not(:focus-visible) { outline: none; }
+
+  ::selection { background-color: var(--brand-2); color: #fff; }
+  ::placeholder { color: var(--ink-4); }
+
+  /* Ícone nativo de date/time some no dark — inverte. */
+  .dark input[type='date']::-webkit-calendar-picker-indicator,
+  .dark input[type='time']::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.55);
+  }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Scrollbar: presente, mas quieta. */
+  .scroll-slim { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+  .scroll-slim::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-slim::-webkit-scrollbar-track { background: transparent; }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background: var(--hairline-strong);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-4);
+    background-clip: content-box;
+  }
+
+  /* O scrim: borra e dessatura o app atrás do overlay. */
+  .scrim {
+    background-color: var(--scrim);
+    backdrop-filter: blur(14px) saturate(115%);
+    -webkit-backdrop-filter: blur(14px) saturate(115%);
+  }
+
+  /* Superfície de ênfase — plana. */
+  .band-surface { background-color: var(--band); }
+  .band-grid::before { content: none; }
+
+  /* Indicador "ao vivo": uma pulsação calma, nunca uma festa. */
+  .pulse-dot { position: relative; }
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 9999px;
+    border: 1.5px solid currentColor;
+    opacity: 0;
+    animation: csa-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+  @keyframes csa-pulse {
+    0%        { transform: scale(0.7);  opacity: 0.55; }
+    70%, 100% { transform: scale(1.45); opacity: 0; }
+  }
+
+  /* Skeleton */
+  .shimmer {
+    background-image: linear-gradient(
+      90deg,
+      var(--skeleton) 0%,
+      var(--surface-3) 40%,
+      var(--skeleton) 80%
+    );
+    background-size: 200% 100%;
+    animation: csa-shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes csa-shimmer { to { background-position: -200% 0; } }
+
+  /* Impressão: extração de relatório executivo. */
+  @media print {
+    .print\:hidden { display: none !important; }
+    .print-report { background: #fff !important; color: #000 !important; }
+  }
+}
+
+/* Troca de tema: o tema novo é revelado em círculo (ver lib/theme.ts).
+   Desliga o crossfade padrão para o recorte circular ficar nítido. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) { z-index: 2; }
+::view-transition-old(root) { z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================================
+   Exceção funcional: cores da legenda do calendário
+   --------------------------------------------------------------------------
+   A célula do dia recebe a cor da categoria por `--day-fill` / `--day-corner`
+   (definidos inline a partir do dado). O triângulo de canto reproduz o PDF:
+   "datas com mais de uma cor possuem mais de um evento programado no dia".
+   ========================================================================== */
+
+@layer components {
+  .day-cell {
+    background-color: var(--day-fill, transparent);
+    background-image: linear-gradient(225deg, var(--day-corner, transparent) 0 30%, transparent 30%);
+  }
+
+  /* Spinner discreto para "Lendo…" */
+  .spin { animation: csa-spin 0.9s linear infinite; }
+  @keyframes csa-spin { to { transform: rotate(360deg); } }
+}
