@@ -1,0 +1,37 @@
+# ============================================================================
+# Render (render.com) — sistema completo num serviço só
+# ----------------------------------------------------------------------------
+# A API precisa de processo sempre ligado (fila de leitura e agendador de
+# avisos) e de disco (banco SQLite + PDFs originais). A Vercel não oferece
+# isso; o Render sim. Aqui a API também serve a interface na mesma porta, então
+# não precisa de VITE_API_URL nem de CORS.
+#
+# Uso: Render → New → Blueprint → escolha este repositório.
+# Disco persistente exige plano pago (starter).
+# ============================================================================
+services:
+  - type: web
+    name: calendarios-academicos
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: dados
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22.14.0"
+      - key: DATA_DIR
+        value: /var/data
+      # Login só visual: o botão entra direto, sem Outlook e SEM controle de acesso.
+      - key: AUTH_MODE
+        value: dev
+      # Sem gateway de push/e-mail da TI, os envios ficam marcados como demonstração.
+      - key: DEMO_MODE
+        value: "true"
+      # Só se a interface continuar também na Vercel: https://<projeto>.vercel.app
+      - key: CORS_ORIGINS
+        sync: false

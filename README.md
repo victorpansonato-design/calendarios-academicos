@@ -51,7 +51,11 @@ Todas estão comentadas em [.env.example](.env.example). Sem uma credencial, a f
 
 ## Publicar (Vercel + servidor da API)
 
-A **interface** pode ir para a Vercel; a **API não**, porque precisa de um processo sempre ligado (fila de leitura e agendador de avisos) e de disco (banco e PDFs). Hospede a API num servidor com disco persistente (VM, Render, Railway, Fly.io…).
+A **interface** pode ir para a Vercel; a **API não**, porque precisa de um processo sempre ligado (fila de leitura e agendador de avisos) e de disco (banco e PDFs). Na Vercel a API até compila (ela reconhece o Fastify), mas o disco é apagado a cada execução: os calendários sumiriam. Hospede a API num servidor com disco persistente (VM, Render, Railway, Fly.io…).
+
+**Mais simples: Render.** O [`render.yaml`](render.yaml) sobe o sistema inteiro (API + interface) num serviço só, com disco: Render → New → Blueprint → este repositório. Não precisa de Vercel, `VITE_API_URL` nem CORS.
+
+Mantendo a interface na Vercel:
 
 1. **API** (servidor): `npm ci && npm start`, com `DATA_DIR` num disco persistente e `CORS_ORIGINS=https://<seu-projeto>.vercel.app`.
 2. **Interface** (Vercel): Root Directory = `apps/web` (o `apps/web/vercel.json` já define build e saída) e a variável `VITE_API_URL=https://<endereço-da-api>`. Redeploy depois de mudar a variável: ela entra no build.
