@@ -19,6 +19,8 @@ import { startWorkers } from './src/workers';
 let ready: Promise<FastifyInstance> | undefined;
 
 function boot(): Promise<FastifyInstance> {
+  // Sem gateway de push/e-mail da TI: os envios aparecem marcados como demonstração.
+  process.env.DEMO_MODE ??= 'true';
   const ctx = createContext(loadConfig());
   return buildApp(ctx).then(async (app) => {
     if (ctx.config.scheduler.enabled) startWorkers(ctx, (m) => app.log.info(m));
