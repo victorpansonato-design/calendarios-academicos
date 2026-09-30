@@ -28,6 +28,9 @@ await build({
   logLevel: 'warning',
 });
 fs.cpSync(path.join(root, 'node_modules/pdfjs-dist'), path.join(func, 'node_modules/pdfjs-dist'), { recursive: true });
+// Calendário de exemplo que a demonstração já abre carregado (o mesmo PDF dos testes).
+fs.mkdirSync(path.join(func, 'seed'));
+fs.copyFileSync(path.join(root, 'apps/api/test/fixtures/calendario_presencial_2026_2.pdf'), path.join(func, 'seed/calendario_presencial_2026_2.pdf'));
 fs.writeFileSync(path.join(func, 'package.json'), JSON.stringify({ type: 'module' }));
 fs.writeFileSync(
   path.join(func, '.vc-config.json'),
