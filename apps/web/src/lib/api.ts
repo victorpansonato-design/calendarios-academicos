@@ -51,7 +51,21 @@ export class ApiError extends Error {
  */
 export const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
 
+/** Demonstração só-interface: as rotas são atendidas no próprio navegador (src/demo). */
+export const DEMO = import.meta.env.VITE_DEMO === 'true';
+
+async function demo<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const { demoRequest, DemoError } = await import('../demo/server');
+  try {
+    return (await demoRequest(method, path, body)) as T;
+  } catch (err) {
+    if (err instanceof DemoError) throw new ApiError(err.status, err.message, err.detail);
+    throw err;
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  if (DEMO) return demo<T>(method, path, body);
   const token = getToken();
   let res: Response;
   try {
@@ -94,6 +108,7 @@ export interface UploadProgress {
 
 /** Envio com progresso (XHR — o fetch não informa progresso de upload). */
 function uploadFiles(files: { file: File; path: string }[], onProgress: (p: UploadProgress) => void): Promise<ImportBatch> {
+  if (DEMO) return Promise.reject(new ApiError(400, 'Na demonstração a importação de PDFs fica desligada. O calendário de exemplo já está carregado.'));
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append('manifest', JSON.stringify(files.map((f, i) => ({ field: `f${i}`, path: f.path }))));
@@ -185,12 +200,18 @@ export const api = {
 
 /** Link do PDF original, aberto no visualizador do navegador na página certa. */
 export function pdfUrl(fileId: string, page?: number): string {
+  if (DEMO) return `${DEMO_PDF}${page ? `#page=${page}` : ''}`;
   const token = getToken() ?? '';
   return `${API_BASE}/api/files/${fileId}/content?token=${encodeURIComponent(token)}${page ? `#page=${page}` : ''}`;
 }
 
+/** PDF de exemplo da demonstração (apps/web/public/demo). */
+const DEMO_PDF = `${import.meta.env.BASE_URL}demo/calendario_presencial_2026_2.pdf`;
+
 export async function fetchPdfBytes(fileId: string): Promise<ArrayBuffer> {
-  const res = await fetch(`${API_BASE}/api/files/${fileId}/content`, { headers: { authorization: `Bearer ${getToken() ?? ''}` } });
+  const res = DEMO
+    ? await fetch(DEMO_PDF)
+    : await fetch(`${API_BASE}/api/files/${fileId}/content`, { headers: { authorization: `Bearer ${getToken() ?? ''}` } });
   if (!res.ok) throw new ApiError(res.status, 'Não foi possível abrir o PDF original.');
   return res.arrayBuffer();
 }
