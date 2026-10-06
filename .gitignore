@@ -9,3 +9,4 @@ coverage/
 # referências locais (não versionar: .git aninhado e .env)
 template/
 calendario_ref/
+apps/api/site/

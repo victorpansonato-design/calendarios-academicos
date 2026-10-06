@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../.. && npm install",
+  "buildCommand": "cd ../.. && VITE_DEMO=true npm run build -w @calendarios/web && rm -rf apps/api/site && cp -r apps/web/dist apps/api/site",
+  "outputDirectory": "site"
+}
