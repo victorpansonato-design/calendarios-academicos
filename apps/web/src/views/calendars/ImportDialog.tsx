@@ -3,7 +3,7 @@ import type { DragEvent } from 'react';
 import { AlertTriangle, CheckCircle2, FileArchive, FileText, FolderOpen, Loader2, RotateCcw, UploadCloud } from 'lucide-react';
 import type { ImportBatch, SystemStatus } from '@calendarios/core';
 import { Modal } from '../../components/ui/Overlay';
-import { Button, LinkButton } from '../../components/ui/Button';
+import { Button, LinkButton } from '../../components/ui/button';
 import { Callout, SectionLabel } from '../../components/ui/Surfaces';
 import { Pill } from '../../components/ui/Badges';
 import { api, type UploadProgress } from '../../lib/api';
@@ -197,12 +197,12 @@ export function ImportDialog({ open, onClose, resumeBatchId, status }: { open: b
               }}
               onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
-              className={`flex flex-col items-center gap-3 rounded-xl px-6 py-8 text-center transition-colors ${dragging ? 'bg-brand-soft' : 'bg-surface-2'}`}
+              className={`flex flex-col items-center gap-3 rounded-xl px-6 py-8 text-center transition-colors border border-dashed ${dragging ? 'border-primary/50 bg-primary-soft' : 'border-border bg-surface'}`}
             >
-              <UploadCloud className="h-6 w-6 text-ink-3" />
+              <UploadCloud className="h-6 w-6 text-muted-foreground" />
               <div>
-                <p className="text-[13px] font-semibold text-ink">Arraste aqui os PDFs, uma pasta ou um ZIP</p>
-                <p className="mt-1 text-[12px] text-ink-3">ou escolha abaixo. As subpastas são mantidas.</p>
+                <p className="text-[13px] font-semibold text-foreground">Arraste aqui os PDFs, uma pasta ou um ZIP</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">ou escolha abaixo. As subpastas são mantidas.</p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
                 <Button icon={<FileText className="h-4 w-4" />} onClick={() => filesInput.current?.click()}>
@@ -225,7 +225,7 @@ export function ImportDialog({ open, onClose, resumeBatchId, status }: { open: b
                 {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
                 onChange={(e) => (fromInput(e.target.files), (e.target.value = ''))}
               />
-              <p className="text-[11.5px] text-ink-4">
+              <p className="text-[11.5px] text-muted-foreground">
                 Até {status?.limits.maxFileMb ?? 25} MB por PDF e {status?.limits.maxBatchMb ?? 300} MB por envio. Arquivos que não forem PDF são ignorados e listados.
               </p>
             </div>
@@ -237,25 +237,25 @@ export function ImportDialog({ open, onClose, resumeBatchId, status }: { open: b
                 </SectionLabel>
                 <ul className="scroll-slim mt-2 max-h-48 space-y-1 overflow-y-auto">
                   {picked.slice(0, 200).map((p) => (
-                    <li key={p.path} className="flex items-center gap-2 text-[12px] text-ink-2">
-                      {/\.zip$/i.test(p.path) ? <FileArchive className="h-3.5 w-3.5 shrink-0 text-ink-4" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-ink-4" />}
+                    <li key={p.path} className="flex items-center gap-2 text-[12px] text-foreground/80">
+                      {/\.zip$/i.test(p.path) ? <FileArchive className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />}
                       <span className="min-w-0 flex-1 truncate" title={p.path}>
                         {shortPath(p.path)}
                       </span>
-                      <span className="font-mono text-[11px] text-ink-4">{bytes(p.file.size)}</span>
+                      <span className="font-mono text-[11px] text-muted-foreground">{bytes(p.file.size)}</span>
                     </li>
                   ))}
-                  {picked.length > 200 && <li className="text-[12px] text-ink-4">… e mais {picked.length - 200}</li>}
+                  {picked.length > 200 && <li className="text-[12px] text-muted-foreground">… e mais {picked.length - 200}</li>}
                 </ul>
               </div>
             )}
 
             {step === 'uploading' && progress && (
               <div className="space-y-1.5" aria-live="polite">
-                <div className="h-1.5 overflow-hidden rounded-full bg-track">
-                  <div className="h-full rounded-full bg-ink-2 transition-[width] duration-150" style={{ width: `${Math.round((progress.loaded / progress.total) * 100)}%` }} />
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary transition-[width] duration-150" style={{ width: `${Math.round((progress.loaded / progress.total) * 100)}%` }} />
                 </div>
-                <p className="text-[12px] text-ink-3">
+                <p className="text-[12px] text-muted-foreground">
                   Enviando {bytes(progress.loaded)} de {bytes(progress.total)}…
                 </p>
               </div>
@@ -279,8 +279,8 @@ function NothingFound({ batch }: { batch: ImportBatch }) {
       <ul className="space-y-1.5">
         {batch.ignored.map((i, n) => (
           <li key={n} className="text-[12px]">
-            <span className="block truncate text-ink-2">{shortPath(i.path)}</span>
-            <span className="text-ink-4">{i.reason}</span>
+            <span className="block truncate text-foreground/80">{shortPath(i.path)}</span>
+            <span className="text-muted-foreground">{i.reason}</span>
           </li>
         ))}
       </ul>
@@ -297,7 +297,7 @@ function RunningStep({ batch, onOpen }: { batch: ImportBatch; onOpen: (calendarI
   return (
     <>
       {(repeated > 0 || already > 0 || batch.ignored.length > 0) && (
-        <p className="rounded-lg bg-surface-2 p-3.5 text-[12px] leading-relaxed text-ink-2">
+        <p className="rounded-lg bg-muted p-3.5 text-[12px] leading-relaxed text-foreground/80">
           {[
             repeated > 0 && `${plural(repeated, 'arquivo era cópia de outro e foi juntado', 'arquivos eram cópias de outros e foram juntados')}`,
             already > 0 && `${plural(already, 'arquivo já estava no sistema e não foi importado de novo', 'arquivos já estavam no sistema e não foram importados de novo')}`,
@@ -310,35 +310,35 @@ function RunningStep({ batch, onOpen }: { batch: ImportBatch; onOpen: (calendarI
       )}
       <div className="space-y-1.5" aria-live="polite">
         <div className="flex items-baseline justify-between text-[12px]">
-          <span className="font-medium text-ink">
+          <span className="font-medium text-foreground">
             <span className="font-mono">{done}</span> de <span className="font-mono">{items.length}</span> concluídos
           </span>
-          <span className="font-mono text-ink-3">{pct}%</span>
+          <span className="font-mono text-muted-foreground">{pct}%</span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-track">
-          <div className="h-full rounded-full bg-ink-2 transition-[width] duration-300" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${pct}%` }} />
         </div>
-        <p className="text-[12px] text-ink-3">Cada calendário aparece assim que termina de ser lido. Pode fechar esta janela: a leitura continua.</p>
+        <p className="text-[12px] text-muted-foreground">Cada calendário aparece assim que termina de ser lido. Pode fechar esta janela: a leitura continua.</p>
       </div>
 
-      <ul className="divide-y divide-hairline">
+      <ul className="divide-y divide-border">
         {items.map((i) => {
           const st = IMPORT_STATUS[i.status];
           return (
             <li key={i.id} className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[12.5px] font-medium text-ink" title={i.relativePath}>
+                <p className="truncate text-[12.5px] font-medium text-foreground" title={i.relativePath}>
                   {shortPath(i.relativePath)}
                 </p>
-                {i.groupLeaderId && <p className="text-[11px] text-ink-4">Cópia de outro arquivo — juntado no mesmo calendário.</p>}
-                {i.error && <p className={`text-[12px] ${i.status === 'error' ? 'text-crit-ink' : 'text-ink-3'}`}>{i.status === 'skipped' ? 'Já está no sistema — nada foi alterado.' : i.error}</p>}
+                {i.groupLeaderId && <p className="text-[11px] text-muted-foreground">Cópia de outro arquivo — juntado no mesmo calendário.</p>}
+                {i.error && <p className={`text-[12px] ${i.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{i.status === 'skipped' ? 'Já está no sistema — nada foi alterado.' : i.error}</p>}
 
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                {i.calendarId && (i.status === 'needs_review' || i.status === 'ready') && <span className="text-[12px] text-ink-4">{plural(i.eventCount, 'evento', 'eventos')}</span>}
+                {i.calendarId && (i.status === 'needs_review' || i.status === 'ready') && <span className="text-[12px] text-muted-foreground">{plural(i.eventCount, 'evento', 'eventos')}</span>}
                 <span className="inline-flex items-center gap-1.5">
-                  {i.status === 'reading' && <Loader2 className="spin h-3.5 w-3.5 text-ink-3" />}
-                  {i.status === 'ready' && <CheckCircle2 className="h-3.5 w-3.5 text-ink-3" />}
+                  {i.status === 'reading' && <Loader2 className="spin h-3.5 w-3.5 text-muted-foreground" />}
+                  {i.status === 'ready' && <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />}
                   <Pill tone={st.tone} solid={i.status === 'error'} dot={i.status !== 'reading' && i.status !== 'ready'}>
                     {st.label}
                   </Pill>

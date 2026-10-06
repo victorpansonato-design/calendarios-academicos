@@ -2,26 +2,30 @@ import { useId } from 'react';
 import type { InputHTMLAttributes, ReactNode, RefObject, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { motion } from 'motion/react';
 import { ChevronDown, Search, X } from 'lucide-react';
+import { FieldLabel } from './field-label';
 import { spring } from '../../lib/motion';
+import { cn } from '../../lib/utils';
 
 /* ==========================================================================
-   Form controls
+   Controles de formulário
    --------------------------------------------------------------------------
-   Controls are filled, not outlined: the inset surface is what says "you can
-   type here". An outline would repeat what the fill already says, and would put
-   a rectangle back on a screen we just cleared of them.
+   O visual do template Anchieta: campo com contorno, fundo `background`,
+   40px de altura e ring de foco semântico. O rótulo é o FieldLabel do
+   template (11px, caixa alta, espaçado), com o asterisco de obrigatório em
+   amarelo de aviso. A dica fica debaixo do campo, lida depois do valor.
 
-   The one line a control draws is the focus ring, because that is the only
-   moment a boundary carries information. A required field is marked once, next
-   to its label, and the hint sits under the control where it is read after the
-   value rather than before it.
+   O Select continua nativo (teclado e celular de graça); o controle
+   segmentado, o interruptor e o chip são nossos, com a animação de mola.
    ========================================================================== */
 
-const CONTROL =
-  'w-full rounded-md bg-surface-2 px-3 text-[13px] text-ink ' +
-  'transition-colors placeholder:text-ink-4 hover:bg-surface-3 ' +
-  'focus:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-focus ' +
-  'disabled:opacity-50';
+export const CONTROL =
+  'w-full rounded-md border border-border bg-background px-3 text-sm text-foreground ring-offset-background ' +
+  'transition-[color,box-shadow,border-color] placeholder:text-muted-foreground ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
+  'disabled:cursor-not-allowed disabled:opacity-50';
+
+/** O mesmo estilo do rótulo, para títulos de grupo que não apontam para um campo só. */
+export const LABEL_TEXT = 'text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase';
 
 export function Label({
   children,
@@ -36,11 +40,10 @@ export function Label({
 }) {
   return (
     <div className="mb-1.5 flex items-baseline justify-between gap-3">
-      <label htmlFor={htmlFor} className="text-[12px] font-medium text-ink">
+      <FieldLabel htmlFor={htmlFor} required={required}>
         {children}
-        {required && <span className="ml-1 text-crit">*</span>}
-      </label>
-      {hint && <span className="text-[11px] text-ink-4">{hint}</span>}
+      </FieldLabel>
+      {hint && <span className="font-mono text-[11px] text-muted-foreground tabular">{hint}</span>}
     </div>
   );
 }
@@ -55,7 +58,7 @@ export interface FieldProps {
   className?: string;
 }
 
-export function Field({ label, required, hint, help, error, children, className = '' }: FieldProps) {
+export function Field({ label, required, hint, help, error, children, className }: FieldProps) {
   const id = useId();
   return (
     <div className={className}>
@@ -66,44 +69,44 @@ export function Field({ label, required, hint, help, error, children, className 
       )}
       {children(id)}
       {error ? (
-        <p className="mt-1.5 text-[11.5px] font-medium text-crit">{error}</p>
+        <p className="mt-1.5 text-xs font-medium text-destructive">{error}</p>
       ) : help ? (
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-4">{help}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{help}</p>
       ) : null}
     </div>
   );
 }
 
-export function TextInput({ className = '', ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${CONTROL} h-9 ${className}`} {...rest} />;
+export function TextInput({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cn(CONTROL, 'h-10 py-2', className)} {...rest} />;
 }
 
-export function TextArea({ className = '', rows = 3, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea rows={rows} className={`${CONTROL} resize-y py-2 leading-relaxed ${className}`} {...rest} />;
+export function TextArea({ className, rows = 3, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea rows={rows} className={cn(CONTROL, 'min-h-10 resize-y py-2 leading-relaxed', className)} {...rest} />;
 }
 
 export function Select({
-  className = '',
+  className,
   children,
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className="relative">
-      <select className={`${CONTROL} h-9 cursor-pointer appearance-none pr-8 ${className}`} {...rest}>
+      <select className={cn(CONTROL, 'h-10 cursor-pointer appearance-none pr-9', className)} {...rest}>
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 h-3.5 w-3.5 -translate-y-1/2 text-ink-4" />
+      <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
     </div>
   );
 }
 
-/* -- Search box ----------------------------------------------------------- */
+/* -- Busca ---------------------------------------------------------------- */
 
 export function SearchInput({
   value,
   onValueChange,
   placeholder = 'Buscar…',
-  className = '',
+  className,
   autoFocus,
   inputRef,
 }: {
@@ -116,8 +119,8 @@ export function SearchInput({
   inputRef?: RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className={`relative ${className}`}>
-      <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-ink-4" />
+    <div className={cn('relative', className)}>
+      <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <input
         ref={inputRef}
         type="search"
@@ -125,14 +128,14 @@ export function SearchInput({
         autoFocus={autoFocus}
         onChange={(e) => onValueChange(e.target.value)}
         placeholder={placeholder}
-        className={`${CONTROL} h-9 pr-8 pl-9 [&::-webkit-search-cancel-button]:hidden`}
+        className={cn(CONTROL, 'h-10 py-2 pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden')}
       />
       {value && (
         <button
           type="button"
           onClick={() => onValueChange('')}
           aria-label="Limpar busca"
-          className="absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-ink-4 transition-colors hover:bg-surface-3 hover:text-ink"
+          className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -141,7 +144,7 @@ export function SearchInput({
   );
 }
 
-/* -- Segmented control ---------------------------------------------------- */
+/* -- Controle segmentado -------------------------------------------------- */
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -162,23 +165,23 @@ export function Segmented<T extends string>({
   options: SegmentedOption<T>[];
   value: T;
   onChange: (v: T) => void;
-  /** Must be unique per instance — drives the sliding pill animation. */
+  /** Precisa ser único por instância — é ele que faz a pílula deslizar. */
   layoutId: string;
   size?: 'xs' | 'sm';
   tone?: 'plain' | 'band';
   full?: boolean;
 }) {
   const height = size === 'xs' ? 'h-7' : 'h-8';
-  const pad = size === 'xs' ? 'px-2.5 text-[11.5px]' : 'px-3 text-[12.5px]';
+  const pad = size === 'xs' ? 'px-2.5 text-xs' : 'px-3 text-[13px]';
 
   return (
     <div
       role="tablist"
-      className={[
-        'shrink-0 items-center gap-0.5 rounded-full p-0.5',
-        tone === 'band' ? 'bg-surface-3' : 'bg-surface-2',
+      className={cn(
+        'shrink-0 items-center gap-0.5 rounded-lg p-0.75',
+        tone === 'band' ? 'bg-muted-strong' : 'bg-muted',
         full ? 'flex w-full' : 'inline-flex',
-      ].join(' ')}
+      )}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -189,20 +192,20 @@ export function Segmented<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(opt.value)}
-            className={[
-              'relative flex items-center justify-center gap-1.5 rounded-full whitespace-nowrap transition-colors',
+            className={cn(
+              'relative flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors',
               height,
               pad,
-              full ? 'flex-1' : '',
-              active ? 'font-semibold text-ink' : 'font-medium text-ink-3 hover:text-ink',
-            ].join(' ')}
+              full && 'flex-1',
+              active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
           >
-            {active && <motion.span layoutId={layoutId} transition={spring} className="absolute inset-0 rounded-full bg-surface" />}
+            {active && <motion.span layoutId={layoutId} transition={spring} className="absolute inset-0 rounded-md bg-background shadow-xs" />}
             <span className="relative z-10 flex items-center gap-1.5">
               {opt.icon}
               {opt.label}
               {opt.count !== undefined && (
-                <span className={['font-mono text-[10.5px] font-medium', active ? 'text-ink-3' : 'text-ink-4'].join(' ')}>{opt.count}</span>
+                <span className={cn('font-mono text-[10.5px] font-medium tabular', active ? 'text-muted-foreground' : 'text-muted-foreground/70')}>{opt.count}</span>
               )}
             </span>
           </button>
@@ -212,7 +215,7 @@ export function Segmented<T extends string>({
   );
 }
 
-/* -- Toggle switch -------------------------------------------------------- */
+/* -- Interruptor ---------------------------------------------------------- */
 
 export function Switch({
   checked,
@@ -229,14 +232,12 @@ export function Switch({
 }) {
   const id = useId();
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg bg-surface-2 p-3.5">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-surface p-3.5">
       <div className="min-w-0">
-        <label htmlFor={id} className="block text-[13px] font-medium text-ink">
+        <label htmlFor={id} className="block text-sm font-medium text-foreground">
           {label}
         </label>
-        {description && (
-          <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-3">{description}</p>
-        )}
+        {description && <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p>}
       </div>
       <button
         id={id}
@@ -246,24 +247,23 @@ export function Switch({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={[
-          'relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200',
-          checked ? 'bg-brand' : 'bg-hairline-strong',
-          disabled ? 'opacity-50' : '',
-        ].join(' ')}
+        className={cn(
+          'relative mt-0.5 h-[1.15rem] w-8 shrink-0 rounded-full shadow-xs transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50',
+          checked ? 'bg-primary' : 'bg-input',
+        )}
       >
         <motion.span
           layout
           transition={spring}
-          className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm"
-          style={{ left: checked ? 18 : 2 }}
+          className="absolute top-[0.075rem] h-4 w-4 rounded-full bg-background shadow-sm"
+          style={{ left: checked ? 15 : 1 }}
         />
       </button>
     </div>
   );
 }
 
-/* -- Chip toggle (multi-select filter) ------------------------------------ */
+/* -- Chip (filtro de seleção múltipla) ------------------------------------ */
 
 export function Chip({
   active,
@@ -283,17 +283,17 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={[
-        'inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[12px] transition-colors',
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors',
         active
           ? tone === 'crit'
-            ? 'bg-crit font-semibold text-white'
-            : 'bg-ink font-semibold text-canvas'
-          : 'bg-surface-2 font-medium text-ink-3 hover:bg-surface-3 hover:text-ink',
-      ].join(' ')}
+            ? 'border-destructive/40 bg-destructive-soft text-destructive'
+            : 'border-primary/40 bg-primary-soft text-primary'
+          : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
     >
       {children}
-      {count !== undefined && <span className="font-mono text-[10.5px] opacity-70">{count}</span>}
+      {count !== undefined && <span className="font-mono text-[10.5px] tabular opacity-70">{count}</span>}
     </button>
   );
 }

@@ -5,25 +5,31 @@ import type {
   Calendar,
   CalendarEvent,
   NotificationJob,
+  PlannedFavoriteReminder,
   PlannedReminder,
   ReminderDiff,
 } from '@calendarios/core';
-import { deliveryKey, diffReminders, planCalendarReminders, scopeLabel } from '@calendarios/core';
+import { deliveryKey, diffReminders, favoriteCancelReason, planCalendarFavorites, planCalendarReminders, planFavoriteReminders, scopeLabel } from '@calendarios/core';
 import type { AppContext } from './context';
 import { badRequest, conflict, notFound } from './errors';
 import { recordAudit } from '../repositories/audit';
 import * as jobs from '../repositories/notifications';
 import { getPreference } from '../repositories/lifecycle';
+import { getMark, listStars } from '../repositories/students';
+import { getCalendarRow } from '../repositories/calendars';
 
 /* ==========================================================================
    Agenda de envios
    --------------------------------------------------------------------------
-   Três origens, visualmente distintas na interface:
+   Quatro origens, visualmente distintas na interface:
 
-     event_reminder — regra automática derivada da importância do evento.
-                      Criada/atualizada/cancelada SÓ na publicação;
-     additional     — comunicação avulsa que alguém agendou ou enviou;
-     lifecycle      — acontecimento individual de um aluno.
+     event_reminder    — aviso do evento para todo o público do calendário.
+                         Criado/atualizado/cancelado SÓ na publicação;
+     favorite_reminder — o mesmo aviso, só para um aluno que marcou o evento
+                         com estrela. Criado na hora da estrela e reconciliado
+                         a cada publicação;
+     additional        — comunicação avulsa que alguém agendou ou enviou;
+     lifecycle         — acontecimento individual de um aluno.
 
    Garantias:
      · a chave de idempotência é única no banco: planejar duas vezes não
@@ -58,38 +64,24 @@ export function previewReminderDiff(ctx: AppContext, calendar: Calendar, events:
   return diffReminders(jobs.activeReminders(ctx.db, calendar.id), planFor(ctx, calendar, events));
 }
 
-/** Aplica o plano da versão publicada. Chamado dentro da transação de publicação. */
-export function applyReminderPlan(ctx: AppContext, calendar: Calendar, events: CalendarEvent[], actor: string): ReminderDiff {
-  const diff = previewReminderDiff(ctx, calendar, events);
-  const byUid = new Map(events.map((e) => [e.uid, e]));
-
-  for (const p of diff.create) {
-    const ev = byUid.get(p.eventUid)!;
-    const existing = jobs.getJobByKey(ctx.db, p.idempotencyKey);
-    if (existing) {
-      // já existiu (cancelado ou enviado): só reativa se nunca foi enviado
-      if (existing.status === 'canceled') {
-        jobs.updateJob(ctx.db, existing.id, { status: 'scheduled', sendAt: p.sendAt, title: p.title, body: p.body, deliveryKey: deliveryKey(p.idempotencyKey, p.sendAt), canceledReason: null });
-        jobs.addAttempt(ctx.db, existing.id, 'skipped', 'Reagendado por uma nova publicação.');
-      }
-      continue;
-    }
-    jobs.insertJob(ctx.db, {
-      kind: 'event_reminder',
-      channel: p.channel,
-      calendarId: calendar.id,
-      eventUid: p.eventUid,
-      lifecycleRuleId: null,
-      audience: calendarAudience(calendar, ev.audience.groups),
-      title: p.title,
-      body: p.body,
-      sendAt: p.sendAt,
-      idempotencyKey: p.idempotencyKey,
-      deliveryKey: deliveryKey(p.idempotencyKey, p.sendAt),
-      createdBy: actor,
-      context: { calendarTitle: calendar.title, eventTitle: p.eventTitle, offsetLabel: p.offsetLabel },
-    });
+/**
+ * Cria o envio planejado, ou reativa o mesmo registro se ele tinha sido
+ * cancelado. Envio que já saiu nunca é refeito.
+ */
+function upsertPlannedJob(ctx: AppContext, p: PlannedReminder, build: () => jobs.NewJob, why: string): 'created' | 'reactivated' | 'kept' {
+  const existing = jobs.getJobByKey(ctx.db, p.idempotencyKey);
+  if (!existing) {
+    jobs.insertJob(ctx.db, build());
+    return 'created';
   }
+  if (existing.status !== 'canceled') return 'kept';
+  jobs.updateJob(ctx.db, existing.id, { status: 'scheduled', sendAt: p.sendAt, title: p.title, body: p.body, deliveryKey: deliveryKey(p.idempotencyKey, p.sendAt), canceledReason: null });
+  jobs.addAttempt(ctx.db, existing.id, 'skipped', why);
+  return 'reactivated';
+}
+
+function applyDiff<P extends PlannedReminder>(ctx: AppContext, diff: ReminderDiff<P>, build: (p: P) => jobs.NewJob, where: string) {
+  for (const p of diff.create) upsertPlannedJob(ctx, p, () => build(p), `Reagendado ${where}.`);
   for (const u of diff.update) {
     jobs.updateJob(ctx.db, u.before.id, {
       sendAt: u.after.sendAt,
@@ -98,12 +90,38 @@ export function applyReminderPlan(ctx: AppContext, calendar: Calendar, events: C
       deliveryKey: deliveryKey(u.after.idempotencyKey, u.after.sendAt),
       status: 'scheduled',
     });
-    jobs.addAttempt(ctx.db, u.before.id, 'skipped', `Atualizado pela publicação: ${u.before.sendAt} → ${u.after.sendAt}.`);
+    jobs.addAttempt(ctx.db, u.before.id, 'skipped', `Atualizado ${where}: ${u.before.sendAt} → ${u.after.sendAt}.`);
   }
   for (const c of diff.cancel) {
     jobs.updateJob(ctx.db, c.job.id, { status: 'canceled', canceledReason: c.reason });
-    jobs.addAttempt(ctx.db, c.job.id, 'skipped', `Cancelado pela publicação: ${c.reason}.`);
+    jobs.addAttempt(ctx.db, c.job.id, 'skipped', `Cancelado ${where}: ${c.reason}.`);
   }
+}
+
+/** Aplica o plano da versão publicada. Chamado dentro da transação de publicação. */
+export function applyReminderPlan(ctx: AppContext, calendar: Calendar, events: CalendarEvent[], actor: string): ReminderDiff {
+  const diff = previewReminderDiff(ctx, calendar, events);
+  const byUid = new Map(events.map((e) => [e.uid, e]));
+  applyDiff(
+    ctx,
+    diff,
+    (p) => ({
+      kind: 'event_reminder',
+      channel: p.channel,
+      calendarId: calendar.id,
+      eventUid: p.eventUid,
+      lifecycleRuleId: null,
+      audience: calendarAudience(calendar, byUid.get(p.eventUid)!.audience.groups),
+      title: p.title,
+      body: p.body,
+      sendAt: p.sendAt,
+      idempotencyKey: p.idempotencyKey,
+      deliveryKey: deliveryKey(p.idempotencyKey, p.sendAt),
+      createdBy: actor,
+      context: { calendarTitle: calendar.title, eventTitle: p.eventTitle, offsetLabel: p.offsetLabel },
+    }),
+    'pela publicação',
+  );
   if (diff.create.length || diff.update.length || diff.cancel.length)
     recordAudit(ctx.db, {
       actor,
@@ -115,9 +133,71 @@ export function applyReminderPlan(ctx: AppContext, calendar: Calendar, events: C
   return diff;
 }
 
+/* -- Lembretes de favorito ------------------------------------------------ */
+
+export function favoriteJob(calendar: Pick<Calendar, 'id' | 'title'>, p: PlannedFavoriteReminder, actor: string): jobs.NewJob {
+  return {
+    kind: 'favorite_reminder',
+    channel: p.channel,
+    calendarId: calendar.id,
+    eventUid: p.eventUid,
+    lifecycleRuleId: null,
+    audience: { type: 'student', studentId: p.studentId, label: `Aluno ${p.studentId}` },
+    studentId: p.studentId,
+    title: p.title,
+    body: p.body,
+    sendAt: p.sendAt,
+    idempotencyKey: p.idempotencyKey,
+    deliveryKey: deliveryKey(p.idempotencyKey, p.sendAt),
+    createdBy: actor,
+    context: { calendarTitle: calendar.title, eventTitle: p.eventTitle, offsetLabel: p.offsetLabel },
+  };
+}
+
+/** O que a publicação faria com os lembretes de favorito (sem gravar). */
+export function previewFavoriteDiff(ctx: AppContext, calendar: Pick<Calendar, 'id' | 'title'>, events: CalendarEvent[]): ReminderDiff<PlannedFavoriteReminder> {
+  const planned = planCalendarFavorites(events, listStars(ctx.db, calendar.id), { calendarId: calendar.id, calendarTitle: calendar.title, now: ctx.now() });
+  const diff = diffReminders(jobs.listActiveJobs(ctx.db, { calendarId: calendar.id, kind: 'favorite_reminder' }), planned);
+  const byUid = new Map(events.map((e) => [e.uid, e]));
+  return { ...diff, cancel: diff.cancel.map((c) => ({ ...c, reason: favoriteCancelReason(c.job, byUid) })) };
+}
+
+/** Reconcilia os lembretes de favorito com a versão publicada (mesma transação da publicação). */
+export function applyFavoritePlan(ctx: AppContext, calendar: Pick<Calendar, 'id' | 'title'>, events: CalendarEvent[], actor: string): ReminderDiff<PlannedFavoriteReminder> {
+  const diff = previewFavoriteDiff(ctx, calendar, events);
+  applyDiff(ctx, diff, (p) => favoriteJob(calendar, p, actor), 'pela publicação');
+  if (diff.create.length || diff.update.length || diff.cancel.length)
+    recordAudit(ctx.db, {
+      actor,
+      action: 'favorites.replan',
+      entity: 'calendar',
+      entityId: calendar.id,
+      // só contagens: quem favoritou o quê é dado pessoal e fica fora da auditoria
+      summary: `Lembretes de favoritos: ${diff.create.length} novo(s), ${diff.update.length} atualizado(s), ${diff.cancel.length} cancelado(s).`,
+    });
+  return diff;
+}
+
+/** Agenda os lembretes de UMA estrela. Devolve o que ficou agendado. */
+export function scheduleFavorite(ctx: AppContext, calendar: Pick<Calendar, 'id' | 'title'>, event: CalendarEvent, studentId: string): NotificationJob[] {
+  const planned = planFavoriteReminders(event, { calendarId: calendar.id, calendarTitle: calendar.title, now: ctx.now(), studentId });
+  for (const p of planned) upsertPlannedJob(ctx, p, () => favoriteJob(calendar, p, 'Aluno (portal/app)'), 'Reagendado: o aluno marcou de novo.');
+  return planned.map((p) => jobs.getJobByKey(ctx.db, p.idempotencyKey)!).filter(Boolean);
+}
+
+/** Cancela os lembretes de favorito de um aluno num evento. */
+export function cancelFavorite(ctx: AppContext, calendarId: string, studentId: string, eventUid: string, reason: string): number {
+  const active = jobs.listActiveJobs(ctx.db, { calendarId, kind: 'favorite_reminder', studentId, eventUid });
+  for (const j of active) {
+    jobs.updateJob(ctx.db, j.id, { status: 'canceled', canceledReason: reason });
+    jobs.addAttempt(ctx.db, j.id, 'skipped', `Cancelado: ${reason}.`);
+  }
+  return active.length;
+}
+
 /** Arquivar um calendário cancela todos os envios futuros dele. */
 export function cancelCalendarJobs(ctx: AppContext, calendarId: string, reason: string, actor: string): number {
-  const active = jobs.listJobs(ctx.db, { calendarId, status: ['scheduled', 'blocked'] });
+  const active = jobs.listActiveJobs(ctx.db, { calendarId });
   for (const j of active) {
     jobs.updateJob(ctx.db, j.id, { status: 'canceled', canceledReason: reason });
     jobs.addAttempt(ctx.db, j.id, 'skipped', `Cancelado: ${reason}.`);
@@ -187,15 +267,38 @@ export function retryJob(ctx: AppContext, id: string, actor: string): Notificati
 
 /* -- Disparo -------------------------------------------------------------- */
 
-export async function dispatchDue(ctx: AppContext): Promise<number> {
-  const now = ctx.now();
-  jobs.releaseStuckJobs(ctx.db, new Date(now.getTime() - 10 * 60_000));
-  const claimed = jobs.claimDueJobs(ctx.db, now);
-  for (const job of claimed) await deliverOne(ctx, job);
-  return claimed.length;
+/**
+ * Dispara os envios vencidos em lotes, repetindo enquanto o lote vier cheio
+ * (até um limite de tempo). Lembretes de favorito são um por aluno: às 09h
+ * podem vencer milhares de uma vez.
+ */
+export async function dispatchDue(ctx: AppContext, budgetMs = 15_000): Promise<number> {
+  const started = Date.now();
+  const batch = ctx.config.scheduler.batchSize;
+  jobs.releaseStuckJobs(ctx.db, new Date(ctx.now().getTime() - 10 * 60_000));
+  let total = 0;
+  for (;;) {
+    const claimed = jobs.claimDueJobs(ctx.db, ctx.now(), batch);
+    for (const job of claimed) await deliverOne(ctx, job);
+    total += claimed.length;
+    if (claimed.length < batch || Date.now() - started > budgetMs) return total;
+  }
 }
 
 async function deliverOne(ctx: AppContext, job: NotificationJob) {
+  // Favorito: confere de novo na hora de enviar — o aluno pode ter desmarcado
+  // (ou o calendário saído do ar) depois que o envio foi reivindicado.
+  if (job.kind === 'favorite_reminder' && job.audience.type === 'student' && job.calendarId && job.eventUid) {
+    const stillStarred = getMark(ctx.db, job.audience.studentId, job.calendarId, job.eventUid) === 'star';
+    const live = getCalendarRow(ctx.db, job.calendarId)?.status !== 'archived';
+    if (!stillStarred || !live) {
+      const reason = stillStarred ? 'Calendário arquivado' : 'O aluno desmarcou o evento';
+      jobs.updateJob(ctx.db, job.id, { status: 'canceled', canceledReason: reason });
+      jobs.addAttempt(ctx.db, job.id, 'skipped', `Não enviado: ${reason.toLowerCase()}.`);
+      return;
+    }
+  }
+
   // Consentimento: acontecimentos individuais respeitam a preferência do aluno.
   if (job.audience.type === 'student') {
     const pref = getPreference(ctx.db, job.audience.studentId);

@@ -59,14 +59,6 @@ export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Texto legível sobre uma cor de legenda (o PDF usa de amarelo-claro a azul-marinho). */
-export function readableInk(hex: string | null | undefined): string {
-  if (!hex) return 'var(--ink)';
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return lum > 0.36 ? '#101317' : '#ffffff';
-}
-
 /** "…/Administração/Administração Veteranos.pdf" — pasta do arquivo e nome, que é o que distingue. */
 export function shortPath(path: string): string {
   const parts = path.split('/').filter(Boolean);

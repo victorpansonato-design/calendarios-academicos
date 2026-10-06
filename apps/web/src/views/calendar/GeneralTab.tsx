@@ -3,7 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { Plus, Save, Trash2, X } from 'lucide-react';
 import type { CalendarNote, CalendarScope, Cohort, LegendEntry } from '@calendarios/core';
 import { ACKNOWLEDGEABLE, openCalendarIssues, slug } from '@calendarios/core';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card, CardHeader, SectionLabel } from '../../components/ui/Surfaces';
 import { Chip, Field, Select, TextArea, TextInput } from '../../components/ui/Fields';
 import { Swatch } from '../../components/calendar/Legend';
@@ -41,13 +41,13 @@ function TagInput({ label, values, onChange, placeholder, help }: { label: strin
           {values.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {values.map((v) => (
-                <span key={v} className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-2 pr-1 pl-3 text-[12px] font-medium text-ink-2">
+                <span key={v} className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background pr-1 pl-3 text-[12px] font-medium text-foreground/80">
                   {v}
                   <button
                     type="button"
                     aria-label={`Remover ${v}`}
                     onClick={() => onChange(values.filter((x) => x !== v))}
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-surface-3 hover:text-ink"
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted-strong hover:text-foreground"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -163,7 +163,7 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
             {(id) => <TextInput id={id} value={form.scope.audienceLabel} onChange={(e) => setScope({ audienceLabel: e.target.value })} />}
           </Field>
           <div>
-            <p className="mb-1.5 text-[12px] font-medium text-ink">Ingressantes ou veteranos</p>
+            <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Ingressantes ou veteranos</p>
             <div className="flex gap-2">
               <Chip active={form.scope.cohorts.includes('ingressantes')} onClick={() => toggleCohort('ingressantes')}>
                 Ingressantes
@@ -172,7 +172,7 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
                 Veteranos
               </Chip>
             </div>
-            <p className="mt-1.5 text-[11.5px] text-ink-4">Nenhum ou os dois marcados = os dois.</p>
+            <p className="mt-1.5 text-[11.5px] text-muted-foreground">Nenhum ou os dois marcados = os dois.</p>
           </div>
           <TagInput label="Cursos abrangidos" values={form.scope.courses} onChange={(v) => setScope({ courses: v })} placeholder="Nome do curso e Enter" help="Vazio = todos os cursos da modalidade." />
           <TagInput label="Exceções" values={form.scope.exceptions} onChange={(v) => setScope({ exceptions: v })} placeholder="Curso excluído e Enter" help="Cursos que NÃO seguem este calendário." />
@@ -195,18 +195,18 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
           {!editLegend && (
             <ul className="space-y-1.5">
               {form.legend.map((l) => (
-                <li key={l.key} className="flex items-start gap-2.5 text-[13px] text-ink-2">
+                <li key={l.key} className="flex items-start gap-2.5 text-[13px] text-foreground/80">
                   <span className="mt-0.5">
                     <Swatch entry={l} size={16} />
                   </span>
                   {l.label}
                 </li>
               ))}
-              {form.legend.length === 0 && <li className="text-[12px] text-ink-3">Sem cores.</li>}
+              {form.legend.length === 0 && <li className="text-[12px] text-muted-foreground">Sem cores.</li>}
             </ul>
           )}
           {editLegend && (
-          <fieldset disabled={!editable} className="divide-y divide-hairline">
+          <fieldset disabled={!editable} className="divide-y divide-border">
             {form.legend.map((l, i) => (
               <div key={l.key} className="space-y-2 py-3 first:pt-0">
                 <TextArea aria-label="Nome da categoria" rows={1} value={l.label} onChange={(e) => setLegend(i, { label: e.target.value })} />
@@ -219,7 +219,7 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
                   onChange={(e) => setLegend(i, { color: e.target.value })}
                   className="h-8 w-9 cursor-pointer rounded-sm bg-transparent"
                 />
-                <span className="flex-1 text-[11.5px] text-ink-4">{l.group}{l.fromPdf ? ' · do PDF' : ''}</span>
+                <span className="flex-1 text-[11.5px] text-muted-foreground">{l.group}{l.fromPdf ? ' · do PDF' : ''}</span>
                 <div className="w-32">
                   <Select aria-label="Estilo na grade" value={l.style} onChange={(e) => setLegend(i, { style: e.target.value as LegendEntry['style'] })}>
                     <option value="fill">Pinta o dia</option>
@@ -253,7 +253,7 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
                 <Button size="sm" variant="ghost" square aria-label={`Remover observação ${i + 1}`} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => setForm((f) => ({ ...f, notes: f.notes.filter((_, j) => j !== i) }))} />
               </div>
             ))}
-            {form.notes.length === 0 && <p className="text-[12px] text-ink-3">Nenhuma observação geral.</p>}
+            {form.notes.length === 0 && <p className="text-[12px] text-muted-foreground">Nenhuma observação geral.</p>}
             <Button size="xs" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setForm((f) => ({ ...f, notes: [...f.notes, { id: `n-${Date.now().toString(36)}`, text: '' }] }))}>
               Adicionar observação
             </Button>
@@ -262,8 +262,8 @@ export function GeneralTab({ ctx }: { ctx: DetailContext }) {
       </div>
 
       {editable && dirty && (
-        <div className="sticky bottom-20 z-10 xl:col-span-2 lg:bottom-4">
-          <div className="flex items-center justify-end gap-3 rounded-xl bg-surface px-4 py-3 shadow-overlay">
+        <div className="sticky bottom-4 z-10 xl:col-span-2">
+          <div className="flex items-center justify-end gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-lg">
             <SectionLabel>Há alterações não salvas</SectionLabel>
             <Button variant="ghost" onClick={() => setForm(init())}>
               Descartar

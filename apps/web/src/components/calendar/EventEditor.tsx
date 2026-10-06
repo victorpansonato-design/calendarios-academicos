@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BellRing, ChevronDown, Copy, ExternalLink, Plus, Trash2, X } from 'lucide-react';
-import type { Calendar, CalendarEvent, DateKind, EventInput, EventTime, Shift } from '@calendarios/core';
+import { BellRing, ChevronDown, Copy, ExternalLink, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import type { Calendar, CalendarEvent, DateKind, EventInput, EventTime, Importance, Shift } from '@calendarios/core';
 import {
   EVENT_TYPE_LABEL,
+  IMPORTANCE_LABEL,
   REMINDER_MOMENTS,
   defaultNotificationRule,
-  importanceForMoments,
+  defaultOffsets,
+  offsetLabel,
+  suggestImportance,
+  suggestedReminders,
   momentLabel,
   reminderTime,
   setReminderMoments,
@@ -18,7 +22,7 @@ import {
   suggestAnchor,
 } from '@calendarios/core';
 import { Drawer, Confirm } from '../ui/Overlay';
-import { Button } from '../ui/Button';
+import { Button } from '../ui/button';
 import { Callout, SectionLabel } from '../ui/Surfaces';
 import { Chip, Field, Segmented, Select, TextArea, TextInput } from '../ui/Fields';
 import { Swatch } from './Legend';
@@ -26,15 +30,28 @@ import { api, pdfUrl, type CalendarDetail } from '../../lib/api';
 import { useToast } from '../ui/Toast';
 import { AUDIENCE_GROUPS } from '../../lib/labels';
 import { when } from '../../lib/format';
-import { collapseVariants } from '../../lib/motion';
+import { collapseVariants, spring } from '../../lib/motion';
+import { cn } from '../../lib/utils';
 
 /* ==========================================================================
    Editor de evento
    --------------------------------------------------------------------------
-   À vista, só o que se muda no dia a dia: título, data, descrição e aviso.
-   Todo o resto (horários, local, links, cor, público, texto do push, redação
-   original do PDF) fica em "Mais detalhes", fechado por padrão.
+   À vista, só o que se muda no dia a dia: título, data, descrição,
+   importância e aviso. Todo o resto (horários, local, links, cor, público,
+   texto do push, redação original do PDF) fica em "Mais detalhes", fechado
+   por padrão.
+
+   Importância e aviso são perguntas diferentes:
+     · Importância — ONDE o aluno vê o evento (Importantes ou só o completo);
+     · Aviso       — se sai push para todos, e quando.
+   A importância só sugere avisos; aplicar é decisão de quem edita.
    ========================================================================== */
+
+const IMPORTANCE_OPTIONS: { value: Exclude<Importance, 'unset'>; effect: string; dot: string }[] = [
+  { value: 'high', effect: 'Em Importantes, com selo "Não perca". O aluno não pode ocultar.', dot: 'bg-destructive' },
+  { value: 'medium', effect: 'Em Importantes. O aluno pode ocultar se não for com ele.', dot: 'bg-primary' },
+  { value: 'low', effect: 'Só no calendário completo. O aluno pode marcar com ★.', dot: 'bg-muted-foreground/60' },
+];
 
 const SHIFTS: Shift[] = ['Diurno', 'Noturno', 'Matutino', 'Vespertino', 'Integral'];
 
@@ -137,7 +154,17 @@ export function EventEditor({
    * Duas perguntas separadas: QUANDO (no dia / 1 dia antes / 3 dias antes,
    * pode marcar mais de um) e A QUE HORAS (um horário para todos os avisos,
    * começa vazio e é obrigatório). */
-  const mode: 'no' | 'yes' | null = draft.importance === 'unset' ? null : draft.importance === 'low' ? 'no' : 'yes';
+  const mode: 'no' | 'yes' = draft.notification.enabled ? 'yes' : 'no';
+  const suggestion = suggestImportance(draft);
+  // a sugestão de aviso da importância escolhida, para o botão "Usar sugestão"
+  const suggestedOffsets = draft.importance === 'unset' ? [] : defaultOffsets(draft.importance);
+  const reminderMatchesSuggestion =
+    JSON.stringify(draft.notification.offsets.map((o) => [o.daysBefore, o.time])) === JSON.stringify(suggestedOffsets.map((o) => [o.daysBefore, o.time]));
+  const applySuggestedReminders = () =>
+    setDraft((d) => ({
+      ...d,
+      notification: { ...suggestedReminders(d.notification, d.importance), anchorConfirmed: d.dates.kind === 'range' ? true : d.notification.anchorConfirmed },
+    }));
   const avisa = mode === 'yes';
   const moments = draft.notification.offsets.map((o) => o.daysBefore);
   const sendTime = reminderTime(draft.notification);
@@ -145,10 +172,9 @@ export function EventEditor({
   const setMode = (m: 'no' | 'yes') =>
     setDraft((d) =>
       m === 'no'
-        ? { ...d, importance: 'low', notification: setReminderMoments(d.notification, [], '') }
+        ? { ...d, notification: setReminderMoments(d.notification, [], '') }
         : {
             ...d,
-            importance: d.importance === 'medium' || d.importance === 'high' ? d.importance : 'medium',
             // período: a sugestão (começo/fim) aparece marcada logo abaixo, à vista
             notification: { ...d.notification, enabled: true, customized: true, anchorConfirmed: d.dates.kind === 'range' ? true : d.notification.anchorConfirmed },
           },
@@ -159,7 +185,7 @@ export function EventEditor({
       const cur = d.notification.offsets.map((o) => o.daysBefore);
       const next = cur.includes(day) ? cur.filter((x) => x !== day) : [...cur, day];
       const n = setReminderMoments(d.notification, next, reminderTime(d.notification));
-      return { ...d, importance: next.length ? importanceForMoments(next) : 'medium', notification: { ...n, enabled: true } };
+      return { ...d, notification: { ...n, enabled: true } };
     });
 
   const setSendTime = (t: string) =>
@@ -228,12 +254,12 @@ export function EventEditor({
   return (
     <>
       <Drawer open={open} onClose={requestClose} label={event ? `Editar ${event.title}` : 'Novo evento'} width="lg">
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-hairline px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <p className="mb-1 text-[12px] font-medium text-ink-3">{event ? 'Editar evento' : 'Novo evento'}</p>
-            <h2 className="text-[15px] leading-tight font-semibold text-ink">{draft.title || 'Sem título'}</h2>
+            <p className="mb-1 text-[12px] font-medium text-muted-foreground">{event ? 'Editar evento' : 'Novo evento'}</p>
+            <h2 className="font-display text-[18px] leading-tight font-medium text-foreground">{draft.title || 'Sem título'}</h2>
           </div>
-          <button type="button" onClick={requestClose} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-surface-2 hover:text-ink">
+          <button type="button" onClick={requestClose} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -271,7 +297,7 @@ export function EventEditor({
             )}
             {draft.dates.kind === 'list' && (
               <div className="space-y-2">
-                <p className="text-[12px] text-ink-3">Só estes dias — os dias no meio não contam.</p>
+                <p className="text-[12px] text-muted-foreground">Só estes dias — os dias no meio não contam.</p>
                 {draft.dates.dates.map((d, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <TextInput type="date" aria-label={`Dia ${i + 1}`} value={d} onChange={(e) => set('dates', { ...draft.dates, dates: draft.dates.dates.map((x, j) => (j === i ? e.target.value : x)) })} className="max-w-[200px]" />
@@ -291,11 +317,53 @@ export function EventEditor({
             {(id) => <TextArea id={id} rows={4} value={draft.description} onChange={(e) => set('description', e.target.value)} disabled={archived} />}
           </Field>
 
-          <Block title="Avisar os alunos?">
+          <Block title="Importância para o aluno">
+            <div role="radiogroup" aria-label="Importância para o aluno" className="grid gap-2 sm:grid-cols-3">
+              {IMPORTANCE_OPTIONS.map((o) => {
+                const active = draft.importance === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={archived}
+                    onClick={() => set('importance', o.value)}
+                    className={cn(
+                      'relative rounded-lg border p-3 text-left transition-colors disabled:opacity-60',
+                      active ? 'border-primary/50 bg-primary-soft' : 'border-border bg-background hover:bg-muted/60',
+                    )}
+                  >
+                    {active && <motion.span layoutId="editor-importance" transition={spring} className="absolute inset-0 rounded-lg ring-2 ring-primary/40" aria-hidden />}
+                    <span className="relative flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <span className={cn('size-2 rounded-full', o.dot)} aria-hidden />
+                      {IMPORTANCE_LABEL[o.value]}
+                      {suggestion.importance === o.value && <span className="ml-auto text-[10.5px] font-medium text-muted-foreground">sugerida</span>}
+                    </span>
+                    <span className="relative mt-1 block text-[12px] leading-snug text-muted-foreground">{o.effect}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {draft.importance !== suggestion.importance && (
+              <p className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
+                {draft.importance === 'unset' ? 'Ainda não definida — para o aluno conta como Baixa. ' : ''}
+                Sugestão: <strong className="font-semibold text-foreground">{IMPORTANCE_LABEL[suggestion.importance]}</strong>, porque {suggestion.reason}.
+                {!archived && (
+                  <Button size="xs" variant="outline" onClick={() => set('importance', suggestion.importance)}>
+                    Usar sugestão
+                  </Button>
+                )}
+              </p>
+            )}
+          </Block>
+
+          <Block title="Avisar todos os alunos?">
             <div>
               <Segmented<'no' | 'yes'>
                 layoutId="editor-reminder-mode"
-                value={(mode ?? '') as 'no'}
+                value={mode}
                 onChange={setMode}
                 options={[
                   { value: 'no', label: 'Não avisar' },
@@ -303,14 +371,22 @@ export function EventEditor({
                 ]}
               />
             </div>
-            {mode === null && <p className="text-[12px] text-warn-ink">Escolha uma das opções. Enquanto isso, nenhum aviso sai para este evento.</p>}
-            {mode === 'no' && <p className="text-[12px] text-ink-3">Os alunos veem o evento no calendário, mas não recebem aviso.</p>}
+            {mode === 'no' && <p className="text-[12px] text-muted-foreground">O evento aparece no calendário, sem push para todos. Quem marcar com ★ recebe um lembrete só para si.</p>}
+            {suggestedOffsets.length > 0 && !reminderMatchesSuggestion && !archived && (
+              <p className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
+                Sugestão para importância {IMPORTANCE_LABEL[draft.importance].toLowerCase()}: {suggestedOffsets.map((o) => offsetLabel(o).toLowerCase()).join(' e ')}.
+                <Button size="xs" variant="outline" onClick={applySuggestedReminders}>
+                  Usar sugestão
+                </Button>
+              </p>
+            )}
 
             {avisa && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-[12px] font-medium text-ink">
-                    Quando? <span className="font-normal text-ink-3">Pode marcar mais de um.</span>
+                  <p className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+                    Quando? <span className="font-normal tracking-normal text-muted-foreground normal-case">Pode marcar mais de um.</span>
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {REMINDER_MOMENTS.map((d) => (
@@ -338,7 +414,7 @@ export function EventEditor({
 
                 {draft.dates.kind === 'range' && (
                   <div className="space-y-2">
-                    <p className="text-[12px] font-medium text-ink">O aviso é sobre…</p>
+                    <p className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">O aviso é sobre…</p>
                     <Segmented
                       layoutId="editor-anchor"
                       value={draft.notification.anchorConfirmed ? (draft.notification.anchor === 'end' ? 'end' : 'start') : ('' as 'start')}
@@ -352,20 +428,20 @@ export function EventEditor({
                 )}
 
                 {moments.length > 0 && sendTime && (
-                  <div className="rounded-lg bg-surface-2 p-3.5">
-                    <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-ink">
-                      <BellRing className="h-3.5 w-3.5 text-ink-3" /> Os alunos vão receber
+                  <div className="rounded-lg border border-border bg-surface p-3.5">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+                      <BellRing className="h-3.5 w-3.5 text-muted-foreground" /> Os alunos vão receber
                     </p>
                     {preview.length ? (
                       <ul className="space-y-1.5">
                         {preview.map((p) => (
-                          <li key={p.idempotencyKey} className="text-[12px] text-ink-2">
+                          <li key={p.idempotencyKey} className="text-[12px] text-foreground/80">
                             <span className="font-mono">{when(p.sendAt)}</span> — {p.body}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-[12px] text-ink-3">{blockReason ?? 'As datas de aviso já passaram — não há aviso atrasado.'}</p>
+                      <p className="text-[12px] text-muted-foreground">{blockReason ?? 'As datas de aviso já passaram — não há aviso atrasado.'}</p>
                     )}
                   </div>
                 )}
@@ -374,9 +450,9 @@ export function EventEditor({
           </Block>
 
           <div>
-            <button type="button" onClick={() => setMore(!more)} aria-expanded={more} className="flex w-full items-center justify-between rounded-md py-2 text-left text-[13px] font-semibold text-ink-2 transition-colors hover:text-ink">
+            <button type="button" onClick={() => setMore(!more)} aria-expanded={more} className="flex w-full items-center justify-between rounded-md py-2 text-left text-[13px] font-semibold text-foreground/80 transition-colors hover:text-foreground">
               Mais detalhes
-              <ChevronDown className={`h-4 w-4 text-ink-4 transition-transform ${more ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-4 w-4 text-muted-foreground/70 transition-transform ${more ? 'rotate-180' : ''}`} />
             </button>
             <AnimatePresence initial={false}>
               {more && (
@@ -469,8 +545,8 @@ export function EventEditor({
                     </Block>
 
                     <Block title="Para quem">
-                      <p className="text-[12px] leading-relaxed text-ink-3">
-                        Sem nada marcado, vale para todos: <span className="font-medium text-ink-2">{scopeLabel(calendar.scope)}</span>.
+                      <p className="text-[12px] leading-relaxed text-muted-foreground">
+                        Sem nada marcado, vale para todos: <span className="font-medium text-foreground/80">{scopeLabel(calendar.scope)}</span>.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {[...new Set([...AUDIENCE_GROUPS, ...draft.audience.groups])].map((g) => (
@@ -483,7 +559,7 @@ export function EventEditor({
                           </Chip>
                         ))}
                       </div>
-                      {draft.audience.evidence && <p className="text-[11.5px] text-ink-4">No PDF: “{draft.audience.evidence}”</p>}
+                      {draft.audience.evidence && <p className="text-[11.5px] text-muted-foreground">No PDF: “{draft.audience.evidence}”</p>}
                     </Block>
 
                     {avisa && (
@@ -497,11 +573,11 @@ export function EventEditor({
 
                     {event?.rawText && (
                       <Block title="Como está escrito no PDF">
-                        <pre className="rounded-lg bg-surface-2 p-3.5 font-sans text-[12px] leading-relaxed whitespace-pre-wrap text-ink-2">{event.rawText}</pre>
+                        <pre className="rounded-lg bg-muted p-3.5 font-sans text-[12px] leading-relaxed whitespace-pre-wrap text-foreground/80">{event.rawText}</pre>
                         {event.sources[0] && (
                           <div className="flex flex-wrap gap-2">
                             {pages.map((p) => (
-                              <a key={p} href={pdfUrl(event.sources[0].fileId, p)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2 hover:text-ink">
+                              <a key={p} href={pdfUrl(event.sources[0].fileId, p)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-foreground/80 hover:text-foreground">
                                 Abrir o PDF na página {p} <ExternalLink className="h-3 w-3" />
                               </a>
                             ))}
@@ -511,7 +587,7 @@ export function EventEditor({
                     )}
 
                     {event && !archived && (
-                      <div className="flex flex-wrap gap-2 border-t border-hairline pt-4">
+                      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                         <Button variant="ghost" size="sm" icon={<Copy className="h-3.5 w-3.5" />} onClick={duplicate}>
                           Duplicar evento
                         </Button>
@@ -527,9 +603,9 @@ export function EventEditor({
           </div>
         </div>
 
-        <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-hairline bg-surface-2/60 px-5 py-3.5">
+        <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-muted/50 px-5 py-3.5">
           {error && (
-            <p role="alert" className="mr-auto max-w-xs text-[12px] font-medium text-crit">
+            <p role="alert" className="mr-auto max-w-xs text-[12px] font-medium text-destructive">
               {error}
             </p>
           )}
@@ -563,7 +639,7 @@ export function EventEditor({
         title="Excluir este evento?"
         message={
           <>
-            <strong className="text-ink">{event?.title}</strong> sai do calendário. Se foi sem querer, dá para desfazer em Informações → Histórico.
+            <strong className="text-foreground">{event?.title}</strong> sai do calendário. Se foi sem querer, dá para desfazer em Informações → Histórico.
           </>
         }
         confirmLabel="Excluir"

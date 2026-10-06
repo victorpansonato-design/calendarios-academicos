@@ -44,6 +44,7 @@ export const JOB_KIND: Record<JobKind, string> = {
   event_reminder: 'Aviso automático',
   additional: 'Envio adicional',
   lifecycle: 'Acontecimento do aluno',
+  favorite_reminder: 'Lembrete de favorito',
 };
 
 /** Rótulo curto de cada pendência, para listas. A frase completa vem da API. */
@@ -71,13 +72,18 @@ export const ISSUE_LABEL: Record<IssueCode, string> = {
   grid_day_without_event: 'Dia colorido sem evento',
   reminder_time_missing: 'Falta o horário do aviso',
   reminder_after_start: 'Aviso depois do início',
+  legend_missing: 'Sem cor da legenda',
 };
 
+/** Tom da importância: Alta chama atenção, Baixa some, não definida pede decisão. */
+export function importanceTone(i: Importance): Tone {
+  return i === 'high' ? 'crit' : i === 'medium' ? 'info' : i === 'low' ? 'muted' : 'warn';
+}
+
 /** O aviso de um evento, numa frase curta: "No dia e 1 dia antes · 07h00". */
-export function reminderSummary(e: Pick<CalendarEvent, 'importance' | 'notification'>): { text: string; tone: Tone; attention: boolean } {
-  if (e.importance === 'unset') return { text: 'Não escolhido', tone: 'warn', attention: true };
+export function reminderSummary(e: Pick<CalendarEvent, 'notification'>): { text: string; tone: Tone; attention: boolean } {
   const offsets = e.notification.enabled ? e.notification.offsets : [];
-  if (e.importance === 'low' || !offsets.length) return { text: 'Não avisar', tone: 'muted', attention: false };
+  if (!offsets.length) return { text: 'Não avisar', tone: 'muted', attention: false };
   const days = [...offsets].map((o) => o.daysBefore).sort((a, b) => a - b);
   const labels = days.map((d, i) => (i === 0 ? momentLabel(d) : momentLabel(d).toLowerCase()));
   const moments = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}` : labels[0];

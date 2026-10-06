@@ -3,7 +3,7 @@ import { Mail, Send, Smartphone, Users } from 'lucide-react';
 import type { CalendarSummary, Channel } from '@calendarios/core';
 import { addDays, wallTimeToInstant } from '@calendarios/core';
 import { Modal } from '../../components/ui/Overlay';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Callout, DataList } from '../../components/ui/Surfaces';
 import { Chip, Field, Segmented, Select, TextArea, TextInput } from '../../components/ui/Fields';
 import { Pill } from '../../components/ui/Badges';
@@ -126,7 +126,7 @@ export function AdditionalDialog({
       onClose={onClose}
       title="Enviar uma mensagem"
       eyebrow={
-        <Pill dot={false} solid icon={<Send className="h-3 w-3" />} className="bg-surface-3">
+        <Pill dot={false} solid icon={<Send className="h-3 w-3" />} className="bg-muted-strong">
           Envio adicional — não é um aviso automático
         </Pill>
       }
@@ -156,7 +156,7 @@ export function AdditionalDialog({
     >
       <div className="space-y-4 px-5 py-5">
         {error && (
-          <p role="alert" className="text-[12px] font-medium text-crit-ink">
+          <p role="alert" className="text-[12px] font-medium text-destructive">
             {error}
           </p>
         )}
@@ -190,7 +190,7 @@ export function AdditionalDialog({
               </Field>
             </div>
             <div>
-              <p className="mb-1.5 text-[12px] font-medium text-ink">Canal</p>
+              <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Canal</p>
               <Segmented<Channel>
                 layoutId="additional-channel"
                 value={channel}
@@ -208,7 +208,7 @@ export function AdditionalDialog({
               {(id) => <TextArea id={id} rows={channel === 'push' ? 3 : 6} value={body} maxLength={maxBody} onChange={(e) => setBody(e.target.value)} />}
             </Field>
             <div>
-              <p className="mb-1.5 text-[12px] font-medium text-ink">Público</p>
+              <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Público</p>
               <div className="flex flex-wrap gap-2">
                 {AUDIENCE_GROUPS.map((g) => (
                   <Chip key={g} active={groups.includes(g)} onClick={() => setGroups(groups.includes(g) ? groups.filter((x) => x !== g) : [...groups, g])}>
@@ -216,12 +216,12 @@ export function AdditionalDialog({
                   </Chip>
                 ))}
               </div>
-              <p className="mt-1.5 flex items-start gap-1.5 text-[12px] text-ink-3">
+              <p className="mt-1.5 flex items-start gap-1.5 text-[12px] text-muted-foreground">
                 <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {audience?.label ?? '…'}
               </p>
             </div>
             <div className="space-y-2">
-              <p className="text-[12px] font-medium text-ink">Quando</p>
+              <p className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Quando</p>
               <Segmented<When>
                 layoutId="additional-when"
                 value={whenMode}
@@ -235,18 +235,18 @@ export function AdditionalDialog({
                 <div className="flex flex-wrap items-center gap-2">
                   <TextInput type="date" aria-label="Data do envio" value={date} min={todayISO()} onChange={(e) => setDate(e.target.value)} className="w-44" />
                   <TextInput type="time" aria-label="Horário do envio" value={time} onChange={(e) => setTime(e.target.value)} className="w-32" />
-                  <span className="text-[12px] text-ink-4">horário de Brasília</span>
+                  <span className="text-[12px] text-muted-foreground">horário de Brasília</span>
                 </div>
               )}
             </div>
             <div>
-              <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Prévia</p>
-              <div className="max-w-sm rounded-xl bg-surface-2 p-3.5">
-                <p className="flex items-center gap-1.5 text-[11px] font-medium text-ink-4">
+              <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Prévia</p>
+              <div className="max-w-sm rounded-xl border border-border bg-surface p-3.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                   {channel === 'push' ? <Smartphone className="h-3 w-3" /> : <Mail className="h-3 w-3" />} {channel === 'push' ? 'App Grupo Anchieta' : 'E-mail'}
                 </p>
-                <p className="mt-1 text-[13px] font-semibold text-ink">{title || 'Título'}</p>
-                <p className="mt-0.5 text-[12.5px] leading-relaxed whitespace-pre-line text-ink-2">{body || 'Mensagem'}</p>
+                <p className="mt-1 text-[13px] font-semibold text-foreground">{title || 'Título'}</p>
+                <p className="mt-0.5 text-[12.5px] leading-relaxed whitespace-pre-line text-foreground/80">{body || 'Mensagem'}</p>
               </div>
             </div>
           </>
@@ -263,16 +263,16 @@ export function AdditionalDialog({
                 { label: 'Canal', value: channel === 'push' ? 'Push no app' : 'E-mail' },
                 { label: 'Calendário', value: cal?.title ?? '' },
                 { label: 'Para quem', value: audience?.label ?? '' },
-                { label: 'Quantos alunos', value: <span className="text-ink-3">{audience?.note}</span> },
+                { label: 'Quantos alunos', value: <span className="text-muted-foreground">{audience?.note}</span> },
                 { label: 'Quando', value: sendAt ? `${whenLong(sendAt)} (horário de Brasília)` : 'Agora' },
               ]}
             />
-            <div className="rounded-xl bg-surface-2 p-3.5">
-              <p className="text-[13px] font-semibold text-ink">{title}</p>
-              <p className="mt-0.5 text-[12.5px] leading-relaxed whitespace-pre-line text-ink-2">{body}</p>
+            <div className="rounded-xl border border-border bg-surface p-3.5">
+              <p className="text-[13px] font-semibold text-foreground">{title}</p>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed whitespace-pre-line text-foreground/80">{body}</p>
             </div>
-            <label className="flex items-start gap-2.5 rounded-lg bg-surface-2 p-3.5 text-[13px] text-ink">
-              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand)]" checked={checked} onChange={(e) => setChecked(e.target.checked)} data-autofocus />
+            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-surface p-3.5 text-[13px] text-foreground">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={checked} onChange={(e) => setChecked(e.target.checked)} data-autofocus />
               <span>Confirmo o público, o canal e o horário deste envio.</span>
             </label>
           </>

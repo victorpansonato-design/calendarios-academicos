@@ -38,24 +38,27 @@ Convenções:
 | PATCH | `/calendars/:id/events/:eventId` | edita (`EventInput` + `expectedVersion?` → 409 se outra pessoa alterou) |
 | DELETE | `/calendars/:id/events/:eventId` | exclui (fica no histórico) |
 | POST | `/calendars/:id/events/:eventId/duplicate` | duplica |
-| POST | `/calendars/:id/events/bulk-importance` | `{ eventIds, importance }` |
+| POST | `/calendars/:id/events/bulk-importance` | `{ eventIds, importance }` — muda **só a importância** (onde o aluno vê o evento); os avisos não mudam |
+| POST | `/calendars/:id/events/bulk-reminders` | `{ eventIds, days, time }` — avisos em lote (sem `days` = não avisar); não muda a importância |
+| POST | `/calendars/:id/events/suggest-importance` | `{ eventIds?, onlyUnset? = true, apply? = false }` → `{ suggestions: [{ eventId, title, from, to, ruleId, reason }], changed }`. Sem `apply` é só prévia; com `apply: true` grava numa versão (`calendar.edit`). |
+| GET | `/calendars/:id/student-preview?source=draft\|published` | `PublicCalendar` — como o aluno vai ver (rascunho atual por padrão; 404 se pedir a publicada e não houver) |
 | POST | `/calendars/:id/review/ack` | `{ eventId \| null, code, undo? }` — marca pendência como conferida |
 | POST | `/calendars/:id/submit` | Rascunho → Em revisão |
 | POST | `/calendars/:id/return` | Em revisão → Rascunho |
-| GET | `/calendars/:id/publish-preview` | `{ publishCheck, diff }` — impacto nos avisos (`create`, `update`, `cancel`) |
-| POST | `/calendars/:id/publish` | `{ confirm: true }` — só de Em revisão, sem pendências |
+| GET | `/calendars/:id/publish-preview` | `{ publishCheck, diff, studentImpact }` — impacto nos avisos (`create`, `update`, `cancel`) e para os alunos (`importantes`, `unset`, `withoutLegend`, `favorites`) |
+| POST | `/calendars/:id/publish` | `{ confirm: true }` — sem pendências; devolve também `favoriteDiff` (lembretes de favoritos reconciliados) |
 | POST | `/calendars/:id/archive` · `/unarchive` | arquivar (cancela envios futuros) · reativar como rascunho |
 | GET | `/calendars/:id/versions` · `/versions/:vid` | histórico · fotografia |
 | POST | `/calendars/:id/versions/:vid/restore` | restaura como nova versão |
 | GET | `/calendars/:id/audit` | auditoria |
-| GET | `/calendars/:id/reminders` | `{ draftPlan, jobs }` |
+| GET | `/calendars/:id/reminders` | `{ draftPlan, jobs, favoriteSummary }` — lembretes de favorito aparecem só como resumo (`scheduled`, `students`) |
 | GET | `/files/:id/content` | PDF original (inline). Também aceita `?token=` para abrir em nova aba (`#page=N`). |
 
 ## Notificações
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/notifications/jobs?status=a,b&kind&channel&calendarId&q&from&to` | agenda + contagem por status |
+| GET | `/notifications/jobs?status=a,b&kind&channel&calendarId&q&from&to` | agenda + contagem por status. Lembretes de favorito (`kind=favorite_reminder`, um por aluno) só aparecem quando pedidos pelo `kind` |
 | GET | `/notifications/jobs/:id` | `{ job, attempts }` |
 | POST | `/notifications/jobs/:id/cancel` · `/retry` | cancelar o que não saiu · tentar de novo falha/aguardando |
 | POST | `/notifications/audience-preview` | `{ calendarId, groups }` → rótulo do público; `estimate` é `null` até a TI ligar a contagem |
@@ -99,7 +102,33 @@ Enviado pelos sistemas institucionais a cada mudança de status.
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/public/calendars` | calendários **publicados** (não arquivados): id, título, período, público, versão |
-| GET | `/public/calendars/:id` | a versão publicada: eventos (`uid`, título, descrição, datas, horários, local, links, observações, público, tipo, categoria, cor, importância), legenda e observações. Nunca expõe o rascunho, pendências ou autoria. |
+| GET | `/public/calendars/:id` | `PublicCalendar`: a versão publicada com legenda, observações e eventos (`uid`, título, descrição, datas, horários, local, links, observações, público, tipo, categoria, cor, `importance`, `studentImportance`, `calendarReminder { enabled, labels }`, `pushTitle`, `pushBody`, `anchor`, `officialText`). Nunca expõe o rascunho, pendências ou autoria. |
+| GET | `/public/calendars/:id/events/:uid/evento.ics?shift=` | um evento para a agenda (Google, Outlook, iPhone) |
+| GET | `/public/calendars/:id/arquivo.pdf` | o PDF oficial da versão publicada |
+
+### Marcações do aluno (`X-Integration-Key: <STUDENT_API_KEY>`, obrigatória)
+
+Quem chama é o **backend** do portal/app, que já sabe quem é o aluno. A API confia no `studentId` da rota — por isso a chave é obrigatória (sem ela, 503; errada, 401). `studentId`: letras, números, `.`, `_`, `@`, `-` (até 120).
+
+Base: `/public/students/:studentId/calendars/:calendarId`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `…/marks` | `{ starred: uid[], hidden: uid[], reminders: [{ eventUid, sendAt, status, offsetLabel, title, body }] }` |
+| PUT · DELETE | `…/events/:uid/star` | marca/desmarca a estrela. Resposta do PUT (`StarResult`): `{ mark, coveredByCalendar, pushOptIn, reminders, note }` — `note` já vem pronta para a tela ("Lembrete agendado para 16/10 às 09h00.", "Você já recebe o aviso deste evento.", "O horário do lembrete já passou."). |
+| PUT · DELETE | `…/events/:uid/hide` | oculta/volta uma **Média** de "Importantes" (Alta → 409; Baixa → 400). Ocultar cancela o lembrete de favorito do evento. |
+| GET | `…/view?cohort=&shift=&category=&q=` | `StudentView` pronta: `next`, `ongoing`, `importantes`, `importantesPast`, `completo` (por mês), `items`, `legend`, `counts` |
+| GET | `…/importantes.ics?cohort=&shift=` | todos os importantes do aluno (inclui as estrelas) para a agenda |
+
+Regras do lembrete de favorito (`favorite_reminder`):
+
+- vai **só para o aluno** (`audience = { type: "student", studentId }`), com **o mesmo texto** do aviso do evento;
+- se o calendário já avisa todo mundo desse evento, a estrela não agenda nada (sem push duplicado);
+- senão: 1 dia antes, às 09h (São Paulo), respeitando a âncora (início/fim do período, cada data da lista); nada no passado; nada imediato;
+- desmarcar cancela; marcar de novo reativa o mesmo registro (mesma chave); o que já saiu não sai de novo;
+- a cada publicação os lembretes são reconciliados (data mudou → remarca; evento removido ou passou a ter aviso para todos → cancela); arquivar cancela todos;
+- respeita `pushOptIn` do aluno no envio; e o disparo confere a estrela de novo na hora de enviar.
+- Chave de idempotência: `fav:<calendário>:<uid do evento>:fav-d1:<ocorrência>:<studentId>`.
 
 ## Gateway de envio (a TI implementa)
 
@@ -124,7 +153,7 @@ O agendador faz `POST` em `PUSH_WEBHOOK_URL` / `EMAIL_WEBHOOK_URL` com `Authoriz
 }
 ```
 
-- Para acontecimentos, `audience = { "type": "student", "studentId": "12345", "label": "Aluno RA 1234567" }`.
+- Para acontecimentos e lembretes de favorito (`kind: "favorite_reminder"`), `audience = { "type": "student", "studentId": "12345", "label": "Aluno 12345" }`.
 - Resposta `2xx` (opcional `{ "messageId": "…" }`) = enviado. `429`/`5xx`/rede = nova tentativa com espera crescente (até `SCHEDULER_MAX_ATTEMPTS`). Outros `4xx` = falha definitiva, visível na agenda.
 - O gateway deve descartar uma `Idempotency-Key` já processada.
 - `groups` são recortes do evento (`Ingressantes`, `Veteranos`, `Monitores`, `Dependência e Adaptação` ou outro texto que a equipe criou) — a TI mapeia para os filtros da base acadêmica.

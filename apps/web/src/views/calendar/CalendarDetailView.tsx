@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, EyeOff, FileText, RotateCcw, Upload } from 'lucide-react';
+import { ArrowLeft, EyeOff, FileText, GraduationCap, RotateCcw, Upload } from 'lucide-react';
 import type { CalendarEvent, ISODate } from '@calendarios/core';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Callout, Card, EmptyState, PageHeader, Skeleton, Tabs } from '../../components/ui/Surfaces';
 import { Confirm } from '../../components/ui/Overlay';
 import { Pill } from '../../components/ui/Badges';
@@ -143,7 +143,7 @@ export function CalendarDetailView({ id, tab, focusEventId }: { id: string; tab:
     <div className="space-y-6">
       <PageHeader
         eyebrow={
-          <a href={paths.calendars()} className="inline-flex items-center gap-1 transition-colors hover:text-ink">
+          <a href={paths.calendars()} className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
             <ArrowLeft className="h-3.5 w-3.5" /> Calendários
           </a>
         }
@@ -169,6 +169,9 @@ export function CalendarDetailView({ id, tab, focusEventId }: { id: string; tab:
                 </Button>
               </a>
             )}
+            <Button icon={<GraduationCap className="h-4 w-4" />} onClick={() => navigate(paths.studentPortal(calendar.id))}>
+              Ver como aluno
+            </Button>
             {live && (
               <Button variant="ghost" icon={<EyeOff className="h-4 w-4" />} onClick={() => setConfirmArchive(true)} disabled={busy}>
                 Tirar do ar

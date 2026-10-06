@@ -207,4 +207,30 @@ CREATE TABLE student_preferences (
 );
 `,
   },
+  {
+    // Favoritos e "ocultar" do aluno (portal/app) + envios endereçados a um aluno.
+    id: '002_student_marks',
+    sql: `
+CREATE TABLE student_event_marks (
+  student_id TEXT NOT NULL,
+  calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+  event_uid TEXT NOT NULL,
+  mark TEXT NOT NULL CHECK (mark IN ('star', 'hide')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (student_id, calendar_id, event_uid)
+);
+CREATE INDEX student_marks_event ON student_event_marks(calendar_id, event_uid, mark);
+
+ALTER TABLE notification_jobs ADD COLUMN student_id TEXT;
+CREATE INDEX jobs_student ON notification_jobs(student_id, calendar_id, event_uid);
+CREATE INDEX jobs_kind_calendar ON notification_jobs(kind, calendar_id, status);
+
+-- Importância deixou de ligar avisos: só notification.enabled vale. Eventos
+-- baixos/não definidos com aviso ligado por edição direta não passam a enviar.
+UPDATE events SET data_json = json_set(data_json, '$.notification.enabled', json('false'))
+ WHERE json_extract(data_json, '$.importance') IN ('low', 'unset')
+   AND json_extract(data_json, '$.notification.enabled') = 1;
+`,
+  },
 ];

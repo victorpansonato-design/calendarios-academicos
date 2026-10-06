@@ -89,12 +89,16 @@ export function loadConfig() {
       apiKey: str('INTEGRATION_API_KEY'),
       /** Chave opcional para a leitura pública dos calendários publicados. */
       publicApiKey: str('PUBLIC_API_KEY'),
+      /** Chave do backend do portal/app para favoritos e "ocultar" do aluno. Sem ela, essas rotas respondem 503. */
+      studentApiKey: str('STUDENT_API_KEY'),
     },
 
     scheduler: {
       enabled: bool('RUN_WORKERS', true),
       intervalSeconds: num('SCHEDULER_INTERVAL_SECONDS', 20),
       maxAttempts: num('SCHEDULER_MAX_ATTEMPTS', 3),
+      /** Envios por lote. O disparo repete lotes enquanto houver vencidos (lembretes de favorito são por aluno). */
+      batchSize: num('SCHEDULER_BATCH_SIZE', 200),
     },
   };
 }

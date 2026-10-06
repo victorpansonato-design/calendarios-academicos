@@ -3,7 +3,7 @@ import { Mail, Plus, Smartphone, Trash2, Wrench, X } from 'lucide-react';
 import type { Channel, LifecycleRule, LifecycleStep } from '@calendarios/core';
 import { isStepMapped } from '@calendarios/core';
 import { Drawer, Confirm } from '../../components/ui/Overlay';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Callout, SectionLabel } from '../../components/ui/Surfaces';
 import { Chip, Field, Segmented, Switch, TextArea, TextInput } from '../../components/ui/Fields';
 import { Pill } from '../../components/ui/Badges';
@@ -69,9 +69,9 @@ function StepEditor({
         {canRemove && <Button variant="ghost" square aria-label={`Remover etapa ${step.label}`} icon={<Trash2 className="h-4 w-4" />} onClick={onRemove} />}
       </div>
 
-      <div className="space-y-3 border-t border-hairline pt-4">
-        <p className="flex items-center gap-1.5 text-[12px] font-semibold text-ink">
-          <Wrench className="h-3.5 w-3.5 text-ink-3" /> Gatilho — preenchido pela TI
+      <div className="space-y-3 border-t border-border pt-4">
+        <p className="flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+          <Wrench className="h-3.5 w-3.5 text-muted-foreground" /> Gatilho — preenchido pela TI
           {!mapped && <Pill tone="warn">Aguardando mapeamento</Pill>}
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -97,7 +97,7 @@ function StepEditor({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="mb-1.5 text-[12px] font-medium text-ink">Canal</p>
+          <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Canal</p>
           <div className="flex gap-2">
             <Chip active={step.channels.includes('push')} onClick={() => toggleChannel('push')}>
               Push
@@ -108,13 +108,13 @@ function StepEditor({
           </div>
         </div>
         <div>
-          <p className="mb-1.5 text-[12px] font-medium text-ink">Público</p>
-          <p className="text-[12px] leading-relaxed text-ink-3">Somente o aluno do acontecimento. Não é configurável, de propósito.</p>
+          <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Público</p>
+          <p className="text-[12px] leading-relaxed text-muted-foreground">Somente o aluno do acontecimento. Não é configurável, de propósito.</p>
         </div>
       </div>
 
       <div className="space-y-2">
-        <p className="text-[12px] font-medium text-ink">Quando enviar</p>
+        <p className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Quando enviar</p>
         <Segmented
           layoutId={`timing-${step.id}`}
           value={step.timing.mode}
@@ -128,7 +128,7 @@ function StepEditor({
           ]}
         />
         {step.timing.mode === 'delay' && (
-          <div className="flex items-center gap-2 text-[13px] text-ink-2">
+          <div className="flex items-center gap-2 text-[13px] text-foreground/80">
             <TextInput
               type="number"
               min={1}
@@ -142,7 +142,7 @@ function StepEditor({
           </div>
         )}
         {step.timing.mode === 'business_hours' && (
-          <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-foreground/80">
             entre
             <TextInput type="time" aria-label="Início do horário comercial" value={step.timing.start} onChange={(e) => set({ timing: { ...(step.timing as { mode: 'business_hours'; start: string; end: string }), start: e.target.value } })} className="w-32" />
             e
@@ -168,34 +168,34 @@ function StepEditor({
           )}
           <div className="flex flex-wrap gap-1.5">
             {rule.variables.map((v) => (
-              <span key={v.key} title={v.label} className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
+              <span key={v.key} title={v.label} className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground">
                 {`{{${v.key}}}`}
               </span>
             ))}
           </div>
         </div>
         <div>
-          <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Prévia com dados fictícios</p>
+          <p className="mb-1.5 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Prévia com dados fictícios</p>
           <div className="space-y-2">
             {step.channels.includes('push') && (
-              <div className="rounded-xl bg-surface-2 p-3.5">
-                <p className="flex items-center gap-1.5 text-[11px] font-medium text-ink-4">
+              <div className="rounded-xl border border-border bg-surface p-3.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                   <Smartphone className="h-3 w-3" /> Push
                 </p>
-                <p className="mt-1 text-[13px] font-semibold text-ink">{preview?.pushTitle || '—'}</p>
-                <p className="mt-0.5 text-[12.5px] text-ink-2">{preview?.pushBody || '—'}</p>
+                <p className="mt-1 text-[13px] font-semibold text-foreground">{preview?.pushTitle || '—'}</p>
+                <p className="mt-0.5 text-[12.5px] text-foreground/80">{preview?.pushBody || '—'}</p>
               </div>
             )}
             {step.channels.includes('email') && (
-              <div className="rounded-xl bg-surface-2 p-3.5">
-                <p className="flex items-center gap-1.5 text-[11px] font-medium text-ink-4">
+              <div className="rounded-xl border border-border bg-surface p-3.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                   <Mail className="h-3 w-3" /> E-mail
                 </p>
-                <p className="mt-1 text-[13px] font-semibold text-ink">{preview?.emailSubject || '—'}</p>
-                <p className="mt-0.5 text-[12.5px] whitespace-pre-line text-ink-2">{preview?.emailBody || '—'}</p>
+                <p className="mt-1 text-[13px] font-semibold text-foreground">{preview?.emailSubject || '—'}</p>
+                <p className="mt-0.5 text-[12.5px] whitespace-pre-line text-foreground/80">{preview?.emailBody || '—'}</p>
               </div>
             )}
-            {preview?.missing.length ? <p className="text-[11.5px] text-warn-ink">Variável sem exemplo: {preview.missing.join(', ')}. Confira a grafia.</p> : null}
+            {preview?.missing.length ? <p className="text-[11.5px] text-warning-foreground">Variável sem exemplo: {preview.missing.join(', ')}. Confira a grafia.</p> : null}
           </div>
         </div>
       </div>
@@ -239,17 +239,17 @@ export function RuleDrawer({ rule, onClose, onSaved }: { rule: LifecycleRule | n
       <Drawer open={Boolean(rule)} onClose={close} label={rule ? `Regra ${rule.name}` : 'Regra'} width="xl">
         {rule && (
           <>
-            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-hairline px-5 py-4">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div className="min-w-0">
-                <p className="mb-1 text-[12px] font-medium text-ink-3">Acontecimento do aluno</p>
-                <h2 className="text-[15px] leading-tight font-semibold text-ink">{rule.name}</h2>
-                <p className="mt-1 text-[12px] text-ink-3">{rule.description}</p>
+                <p className="mb-1 text-[12px] font-medium text-muted-foreground">Acontecimento do aluno</p>
+                <h2 className="font-display text-[18px] leading-tight font-medium text-foreground">{rule.name}</h2>
+                <p className="mt-1 text-[12px] text-muted-foreground">{rule.description}</p>
               </div>
-              <button type="button" onClick={close} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-surface-2 hover:text-ink">
+              <button type="button" onClick={close} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </header>
-            <div className="scroll-slim min-h-0 flex-1 divide-y divide-hairline overflow-y-auto">
+            <div className="scroll-slim min-h-0 flex-1 divide-y divide-border overflow-y-auto">
               {error && (
                 <div className="px-5 pt-4">
                   <Callout tone="crit" title="Não foi possível salvar">
@@ -270,13 +270,13 @@ export function RuleDrawer({ rule, onClose, onSaved }: { rule: LifecycleRule | n
               ))}
               <div className="px-5 py-4">
                 <SectionLabel>Desdobramentos</SectionLabel>
-                <p className="mt-2 text-[12px] text-ink-3">Solicitações com vários resultados (recebida, deferida, indeferida…) têm uma etapa para cada status.</p>
+                <p className="mt-2 text-[12px] text-muted-foreground">Solicitações com vários resultados (recebida, deferida, indeferida…) têm uma etapa para cada status.</p>
                 <Button size="sm" className="mt-3" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setSteps([...steps, newStep(steps.length)])} disabled={steps.length >= 12}>
                   Adicionar desdobramento
                 </Button>
               </div>
             </div>
-            <footer className="flex shrink-0 items-center gap-2 border-t border-hairline bg-surface-2/60 px-5 py-3.5">
+            <footer className="flex shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-5 py-3.5">
               <Pill dot={false}>
                 Última alteração: {rule.updatedBy}
               </Pill>

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyImportance,
   defaultNotificationRule,
+  defaultOffsets,
+  suggestedReminders,
   diffReminders,
   instantToWall,
   planEventReminders,
@@ -33,7 +34,8 @@ function event(label: string, importance: Importance, patch: Partial<CalendarEve
     category: null,
     color: null,
     importance,
-    notification: applyImportance(defaultNotificationRule(anchor), importance),
+    // avisos e importância são independentes; aqui o fixture usa a sugestão da importância
+    notification: suggestedReminders(defaultNotificationRule(anchor), importance),
     sources: [],
     review: emptyReview(),
     origin: 'import',
@@ -55,15 +57,20 @@ describe('fuso America/Sao_Paulo', () => {
   });
 });
 
-describe('importância → lembretes', () => {
-  it('baixa: nenhum aviso automático', () => {
-    expect(planEventReminders(event('25/08', 'low'), ctx)).toEqual([]);
+describe('avisos (independentes da importância)', () => {
+  it('aviso desligado: nada, qualquer que seja a importância', () => {
+    const e = event('25/08', 'high', { notification: { enabled: false } as never });
+    expect(planEventReminders(e, ctx)).toEqual([]);
+    expect(reminderBlockReason(e)).toBe('Sem aviso para este evento');
   });
 
-  it('não definida: nenhum aviso', () => {
-    const e = event('25/08', 'unset');
-    expect(planEventReminders(e, ctx)).toEqual([]);
-    expect(reminderBlockReason(e)).toBe('Aviso ainda não escolhido');
+  it('importância baixa com aviso ligado agenda normalmente', () => {
+    const e = event('25/08', 'low', { notification: { enabled: true, offsets: [{ id: 'd1', daysBefore: 1, time: '09:00' }] } as never });
+    expect(planEventReminders(e, ctx)).toHaveLength(1);
+  });
+
+  it('não definida, sem aviso: nenhum push', () => {
+    expect(planEventReminders(event('25/08', 'unset'), ctx)).toEqual([]);
   });
 
   it('média: um push 1 dia antes', () => {
@@ -108,10 +115,10 @@ describe('importância → lembretes', () => {
     expect(a).toEqual(b);
   });
 
-  it('personalização da equipe sobrevive à troca de importância', () => {
-    const custom = { ...applyImportance(defaultNotificationRule('start'), 'high'), customized: true, offsets: [{ id: 'c1', daysBefore: 5, time: '18:00' }] };
-    expect(applyImportance(custom, 'medium').offsets).toEqual([{ id: 'c1', daysBefore: 5, time: '18:00' }]);
-    expect(applyImportance(custom, 'low').offsets).toEqual([]);
+  it('a sugestão da importância é só sugestão: Média 1 dia antes, Alta 3 e 1, Baixa nenhum', () => {
+    expect(defaultOffsets('medium').map((o) => o.daysBefore)).toEqual([1]);
+    expect(defaultOffsets('high').map((o) => o.daysBefore)).toEqual([3, 1]);
+    expect(suggestedReminders(defaultNotificationRule('start'), 'low')).toMatchObject({ enabled: false, offsets: [] });
   });
 });
 

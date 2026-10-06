@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Ban, RotateCcw, X } from 'lucide-react';
 import { Drawer, Confirm } from '../../components/ui/Overlay';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { DataList, SectionLabel, Skeleton } from '../../components/ui/Surfaces';
 import { Pill } from '../../components/ui/Badges';
 import { useToast } from '../../components/ui/Toast';
@@ -49,12 +49,12 @@ export function JobDrawer({ id, onClose, onChanged }: { id: string | null; onClo
   return (
     <>
       <Drawer open={Boolean(id)} onClose={onClose} label="Detalhe do envio" width="md">
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-hairline px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <p className="mb-1 text-[12px] font-medium text-ink-3">Detalhe do envio</p>
-            <h2 className="text-[15px] leading-tight font-semibold text-ink">{job?.title ?? '…'}</h2>
+            <p className="mb-1 text-[12px] font-medium text-muted-foreground">Detalhe do envio</p>
+            <h2 className="font-display text-[18px] leading-tight font-medium text-foreground">{job?.title ?? '…'}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-surface-2 hover:text-ink">
+          <button type="button" onClick={onClose} aria-label="Fechar" className="-mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -70,16 +70,16 @@ export function JobDrawer({ id, onClose, onChanged }: { id: string | null; onClo
                 </Pill>
                 <Pill dot={false}>{job.channel === 'push' ? 'Push' : 'E-mail'}</Pill>
               </div>
-              <div className="rounded-lg bg-surface-2 p-4">
-                <p className="text-[13px] font-semibold text-ink">{job.title}</p>
-                <p className="mt-1 text-[13px] leading-relaxed whitespace-pre-line text-ink-2">{job.body}</p>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <p className="text-[13px] font-semibold text-foreground">{job.title}</p>
+                <p className="mt-1 text-[13px] leading-relaxed whitespace-pre-line text-foreground/80">{job.body}</p>
               </div>
               <DataList
                 columns={1}
                 items={[
                   { label: 'Quando', value: whenLong(job.sendAt) + ' (horário de Brasília)' },
                   { label: 'Para quem', value: job.audience.label },
-                  ...(job.context.calendarTitle ? [{ label: 'Calendário', value: job.calendarId ? <a className="text-brand-text hover:underline" href={paths.calendar(job.calendarId)}>{job.context.calendarTitle}</a> : job.context.calendarTitle }] : []),
+                  ...(job.context.calendarTitle ? [{ label: 'Calendário', value: job.calendarId ? <a className="text-primary hover:underline" href={paths.calendar(job.calendarId)}>{job.context.calendarTitle}</a> : job.context.calendarTitle }] : []),
                   ...(job.context.eventTitle ? [{ label: 'Evento', value: job.context.eventTitle }] : []),
                   ...(job.context.offsetLabel ? [{ label: 'Regra automática', value: job.context.offsetLabel }] : []),
                   ...(job.context.ruleName ? [{ label: 'Acontecimento', value: job.context.ruleName }] : []),
@@ -91,20 +91,20 @@ export function JobDrawer({ id, onClose, onChanged }: { id: string | null; onClo
               <div>
                 <SectionLabel>Registro de execução</SectionLabel>
                 {data.attempts.length === 0 ? (
-                  <p className="mt-2 text-[12px] text-ink-3">Ainda não houve tentativa.</p>
+                  <p className="mt-2 text-[12px] text-muted-foreground">Ainda não houve tentativa.</p>
                 ) : (
                   <ol className="mt-2 space-y-2">
                     {data.attempts.map((a) => (
                       <li key={a.id} className="text-[12px]">
-                        <span className="font-semibold text-ink">{OUTCOME[a.outcome] ?? a.outcome}</span>
-                        <span className="text-ink-4"> · {whenLong(a.at)}</span>
-                        <p className="text-ink-3">{a.detail}</p>
+                        <span className="font-semibold text-foreground">{OUTCOME[a.outcome] ?? a.outcome}</span>
+                        <span className="text-muted-foreground"> · {whenLong(a.at)}</span>
+                        <p className="text-muted-foreground">{a.detail}</p>
                       </li>
                     ))}
                   </ol>
                 )}
               </div>
-              <details className="text-[11.5px] text-ink-4">
+              <details className="text-[11.5px] text-muted-foreground">
                 <summary className="cursor-pointer font-medium">Dados técnicos</summary>
                 <p className="mt-1 font-mono break-all">idempotência: {job.idempotencyKey}</p>
                 <p className="font-mono break-all">entrega: {job.deliveryKey}</p>
@@ -114,7 +114,7 @@ export function JobDrawer({ id, onClose, onChanged }: { id: string | null; onClo
           )}
         </div>
         {job && (canCancel || canRetry) && (
-          <footer className="flex shrink-0 justify-end gap-2 border-t border-hairline bg-surface-2/60 px-5 py-3.5">
+          <footer className="flex shrink-0 justify-end gap-2 border-t border-border bg-muted/50 px-5 py-3.5">
             {canCancel && (
               <Button variant="ghost" icon={<Ban className="h-4 w-4" />} onClick={() => setConfirm(true)}>
                 Cancelar envio
@@ -137,7 +137,9 @@ export function JobDrawer({ id, onClose, onChanged }: { id: string | null; onClo
         message={
           job?.kind === 'event_reminder'
             ? 'Este aviso automático não sai. Se o calendário for publicado de novo com a mesma regra, ele pode ser reagendado.'
-            : 'Esta mensagem não será enviada.'
+            : job?.kind === 'favorite_reminder'
+              ? 'O lembrete deste aluno não sai. Se o aluno desmarcar e marcar o evento de novo, ele volta a ser agendado.'
+              : 'Esta mensagem não será enviada.'
         }
         confirmLabel="Cancelar envio"
         cancelLabel="Voltar"

@@ -6,8 +6,6 @@ import * as svc from '../services/lifecycle';
 import * as repo from '../repositories/lifecycle';
 import { badRequest, notFound } from '../services/errors';
 import { stringField } from '../services/validate';
-import { listCalendars } from '../repositories/calendars';
-import { publishedSnapshot } from '../services/calendars';
 
 export function registerLifecycleRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/lifecycle/rules', async (req) => {
@@ -46,51 +44,5 @@ export function registerLifecycleRoutes(app: FastifyInstance, ctx: AppContext) {
     const b = (req.body ?? {}) as { pushOptIn?: unknown; emailOptIn?: unknown };
     if (typeof b.pushOptIn !== 'boolean' || typeof b.emailOptIn !== 'boolean') throw badRequest('Informe pushOptIn e emailOptIn (true/false).');
     return repo.upsertPreference(ctx.db, { studentId: stringField(req.params.studentId, 'studentId', 120, true), pushOptIn: b.pushOptIn, emailOptIn: b.emailOptIn });
-  });
-
-  /* -- Leitura pública para o portal e o app: só versões publicadas ------- */
-
-  app.get('/api/public/calendars', async (req, reply) => {
-    if (!needIntegrationKey(ctx, req, reply, 'public')) return reply;
-    const items = listCalendars(ctx.db)
-      .filter((c) => c.publishedVersion !== null && c.status !== 'archived')
-      .map((c) => {
-        const snap = publishedSnapshot(ctx, c.id)!;
-        return { id: c.id, title: snap.calendar.title, year: snap.calendar.year, semester: snap.calendar.semester, scope: snap.calendar.scope, version: snap.version, publishedAt: snap.publishedAt };
-      });
-    return { items };
-  });
-
-  app.get<{ Params: { id: string } }>('/api/public/calendars/:id', async (req, reply) => {
-    if (!needIntegrationKey(ctx, req, reply, 'public')) return reply;
-    const snap = publishedSnapshot(ctx, req.params.id);
-    if (!snap) throw notFound('Calendário publicado');
-    // o contrato público não expõe pendências internas nem quem editou
-    return {
-      id: snap.id,
-      version: snap.version,
-      publishedAt: snap.publishedAt,
-      title: snap.calendar.title,
-      year: snap.calendar.year,
-      semester: snap.calendar.semester,
-      scope: snap.calendar.scope,
-      legend: snap.calendar.legend,
-      notes: snap.calendar.notes.map((n) => ({ id: n.id, text: n.text })),
-      events: snap.events.map((e) => ({
-        uid: e.uid,
-        title: e.title,
-        description: e.description,
-        dates: e.dates,
-        times: e.times,
-        location: e.location,
-        urls: e.urls,
-        notes: e.notes,
-        audience: e.audience.groups,
-        type: e.type,
-        category: e.category,
-        color: e.color,
-        importance: e.importance,
-      })),
-    };
   });
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card, EmptyState } from '../../components/ui/Surfaces';
 import { MonthCard } from '../../components/calendar/MonthCard';
 import { EventDocument, EventFields, EventMeta } from '../../components/calendar/EventSummary';
@@ -27,10 +27,10 @@ export function MonthTab({ ctx, index }: { ctx: DetailContext; index: DayIndex }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-      <Card className="self-start lg:sticky lg:top-24">
+      <Card className="self-start lg:sticky top-4">
         <div className="mb-3 flex items-center justify-between">
           <Button size="sm" variant="ghost" square aria-label="Mês anterior" disabled={i === 0} icon={<ChevronLeft className="h-4 w-4" />} onClick={() => (setPos(i - 1), setSelected(null))} />
-          <span className="text-[13px] font-semibold text-ink">
+          <span className="font-display text-[14px] font-medium text-foreground">
             {monthName(m.month)} / <span className="font-mono">{m.year}</span>
           </span>
           <Button size="sm" variant="ghost" square aria-label="Próximo mês" disabled={i === months.length - 1} icon={<ChevronRight className="h-4 w-4" />} onClick={() => (setPos(i + 1), setSelected(null))} />
@@ -45,16 +45,16 @@ export function MonthTab({ ctx, index }: { ctx: DetailContext; index: DayIndex }
               type="button"
               onClick={() => (setPos(j), setSelected(null))}
               aria-current={j === i ? 'true' : undefined}
-              className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors ${j === i ? 'bg-ink text-canvas' : 'bg-surface-2 text-ink-3 hover:bg-surface-3 hover:text-ink'}`}
+              className={`rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${j === i ? 'border-primary/40 bg-primary-soft text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
               {monthName(mm.month).slice(0, 3)}
             </button>
           ))}
         </div>
         {selected && (
-          <p className="mt-3 text-[12px] text-ink-3">
+          <p className="mt-3 text-[12px] text-muted-foreground">
             Mostrando só o dia {selected.slice(8)}.{' '}
-            <button type="button" className="font-medium text-ink-2 underline" onClick={() => setSelected(null)}>
+            <button type="button" className="font-medium text-foreground/80 underline" onClick={() => setSelected(null)}>
               Ver o mês inteiro
             </button>
           </p>
@@ -65,15 +65,15 @@ export function MonthTab({ ctx, index }: { ctx: DetailContext; index: DayIndex }
         {shown.length === 0 ? (
           <EmptyState compact title="Nenhum evento neste período" />
         ) : (
-          <ul className="divide-y divide-hairline">
+          <ul className="divide-y divide-border">
             {shown.map((e) => (
               <li key={e.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[132px_minmax(0,1fr)]">
                 <div>
-                  <span className="inline-block rounded-md bg-surface-2 px-2.5 py-1.5 font-mono text-[12.5px] font-semibold text-ink">{datesText(e.dates, e.datesResolved)}</span>
+                  <span className="inline-block rounded-md border border-border bg-surface px-2.5 py-1.5 font-mono text-[12.5px] font-semibold text-foreground">{datesText(e.dates, e.datesResolved)}</span>
                 </div>
                 <div className="min-w-0 space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-[14px] leading-snug font-semibold text-ink">{e.title}</h3>
+                    <h3 className="text-[14px] leading-snug font-semibold text-foreground">{e.title}</h3>
                     {editable && (
                       <Button size="xs" variant="ghost" icon={<Pencil className="h-3 w-3" />} onClick={() => ctx.editEvent(e)}>
                         Editar

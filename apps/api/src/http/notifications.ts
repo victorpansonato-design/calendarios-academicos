@@ -15,6 +15,8 @@ export function registerNotificationRoutes(app: FastifyInstance, ctx: AppContext
     const items = jobs.listJobs(ctx.db, {
       status: q.status ? (q.status.split(',') as JobStatus[]) : undefined,
       kind: (q.kind || undefined) as JobKind | undefined,
+      // lembretes de favorito (um por aluno) só aparecem quando pedidos
+      excludeKinds: q.kind ? undefined : ['favorite_reminder'],
       channel: (q.channel || undefined) as Channel | undefined,
       calendarId: q.calendarId || undefined,
       q: q.q || undefined,

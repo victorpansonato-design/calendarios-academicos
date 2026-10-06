@@ -1,5 +1,6 @@
 import type {
   CalendarEvent,
+  EventDates,
   EventNotificationRule,
   Importance,
   ISODate,
@@ -17,9 +18,14 @@ import { DEFAULT_REMINDER_BODY, DEFAULT_REMINDER_TITLE, renderTemplate } from '.
 /* ==========================================================================
    Agenda de avisos
    --------------------------------------------------------------------------
-   Importância → lembretes:
+   Aviso e importância são decisões separadas. A importância diz onde o evento
+   aparece para o aluno ("Importantes" ou só o calendário completo); o aviso
+   diz se sai push para todo o público do calendário, e quando. Só
+   `notification.enabled` governa os lembretes.
 
-     Baixa  — nenhum aviso automático
+   A importância ainda SUGERE avisos no editor (nunca em lote, nunca sozinha):
+
+     Baixa  — nenhum aviso
      Média  — 1 push, 1 dia antes
      Alta   — 2 pushes, 3 dias e 1 dia antes
 
@@ -30,14 +36,15 @@ import { DEFAULT_REMINDER_BODY, DEFAULT_REMINDER_TITLE, renderTemplate } from '.
        voltar a existir, a conta continua certa.
      · Nada é agendado no passado. Um lembrete cujo horário já passou não é
        criado — não existe aviso retroativo.
-     · Importância não definida, aviso desligado, data pendente ou âncora de
-       período ainda não conferida = zero lembretes.
+     · Aviso desligado, data pendente ou âncora de período ainda não
+       conferida = zero lembretes.
      · Cada lembrete tem uma chave de idempotência estável. Replanejar o mesmo
        calendário produz as mesmas chaves, e o banco rejeita a segunda cópia.
    ========================================================================== */
 
 export const DEFAULT_REMINDER_TIME: WallTime = '09:00';
 
+/** Avisos sugeridos para uma importância — só sugestão, aplicada por uma pessoa. */
 export function defaultOffsets(importance: Importance): ReminderOffset[] {
   if (importance === 'medium') return [{ id: 'd1', daysBefore: 1, time: DEFAULT_REMINDER_TIME }];
   if (importance === 'high')
@@ -60,14 +67,10 @@ export function defaultNotificationRule(anchor: EventNotificationRule['anchor'])
   };
 }
 
-/**
- * Aplica uma importância. Se a equipe já personalizou os lembretes, eles são
- * mantidos; senão, voltam ao padrão da importância escolhida.
- */
-export function applyImportance(rule: EventNotificationRule, importance: Importance): EventNotificationRule {
-  const auto = importance === 'medium' || importance === 'high';
-  if (rule.customized && auto) return { ...rule, enabled: rule.enabled };
-  return { ...rule, enabled: auto, offsets: defaultOffsets(importance), customized: false };
+/** Aplica a sugestão de avisos da importância (botão "Usar sugestão" do editor). */
+export function suggestedReminders(rule: EventNotificationRule, importance: Importance): EventNotificationRule {
+  const offsets = defaultOffsets(importance);
+  return { ...rule, enabled: offsets.length > 0, offsets, customized: true };
 }
 
 /* -- Fuso horário --------------------------------------------------------- */
@@ -159,10 +162,8 @@ export function offsetLabel(o: ReminderOffset): string {
 }
 
 /** Por que um evento não gera lembrete — ou null se gera. */
-export function reminderBlockReason(event: CalendarEvent): string | null {
-  if (event.importance === 'unset') return 'Aviso ainda não escolhido';
-  if (event.importance === 'low') return 'Sem aviso para este evento';
-  if (!event.notification.enabled) return 'Avisos desligados para este evento';
+export function reminderBlockReason(event: Pick<CalendarEvent, 'notification' | 'datesResolved' | 'dates'>): string | null {
+  if (!event.notification.enabled) return 'Sem aviso para este evento';
   if (!event.datesResolved) return 'Data pendente de revisão';
   if (event.notification.offsets.length === 0) return 'Nenhum momento de aviso marcado';
   if (event.notification.offsets.some((o) => !o.time)) return 'Falta o horário do aviso';
@@ -178,12 +179,6 @@ export const REMINDER_MOMENTS = [0, 1, 3] as const;
 
 export function momentLabel(daysBefore: number): string {
   return daysBefore === 0 ? 'No dia' : daysBefore === 1 ? '1 dia antes' : `${daysBefore} dias antes`;
-}
-
-/** Importância derivada dos momentos: guardada para compatibilidade da API e do portal. */
-export function importanceForMoments(days: readonly number[]): Importance {
-  if (!days.length) return 'low';
-  return days.length === 1 ? 'medium' : 'high';
 }
 
 /**
@@ -206,10 +201,44 @@ export function reminderTime(rule: EventNotificationRule): WallTime | '' {
   return times.length === 1 ? times[0] : '';
 }
 
+export type ReminderOccurrence = ReturnType<typeof reminderOccurrences>[number];
+
+/** O mínimo para montar o texto de um aviso (serve ao evento interno e ao público). */
+export type ReminderSource = Pick<CalendarEvent, 'title' | 'dates' | 'times'> & { pushTitle: string; pushBody: string };
+
+/**
+ * Texto do aviso de uma ocorrência. Os avisos para todos e os lembretes de
+ * favorito passam por aqui — por isso o aluno recebe exatamente o mesmo texto.
+ */
+export function renderReminder(
+  event: ReminderSource,
+  occ: ReminderOccurrence,
+  offset: Pick<ReminderOffset, 'daysBefore'>,
+  calendarTitle: string,
+): { title: string; body: string } {
+  const horario = event.times.map((t) => (t.shift ? `${t.shift} ${t.time.replace(':', 'h')}` : t.time.replace(':', 'h'))).join(' · ');
+  const values = {
+    'evento.titulo': event.title,
+    'evento.data': event.dates.kind === 'list' && occ.key !== 'main' ? formatDates(singleDay(event.dates, occ.date)) : formatDates(event.dates),
+    'evento.antecedencia': leadPhrase(offset.daysBefore),
+    'evento.marco': occ.milestone,
+    'evento.horario': horario,
+    'calendario.nome': calendarTitle,
+  };
+  return {
+    title: renderTemplate(event.pushTitle || DEFAULT_REMINDER_TITLE, values).text,
+    body: renderTemplate(event.pushBody || DEFAULT_REMINDER_BODY, values).text,
+  };
+}
+
+function singleDay(dates: EventDates, date: ISODate): EventDates {
+  return { ...dates, kind: 'single', start: date, end: date };
+}
+
 export function planEventReminders(event: CalendarEvent, ctx: PlanContext): PlannedReminder[] {
   if (reminderBlockReason(event)) return [];
   const out: PlannedReminder[] = [];
-  const horario = event.times.map((t) => (t.shift ? `${t.shift} ${t.time.replace(':', 'h')}` : t.time.replace(':', 'h'))).join(' · ');
+  const source = { ...event, pushTitle: event.notification.pushTitle, pushBody: event.notification.pushBody };
 
   for (const occ of reminderOccurrences(event)) {
     for (const offset of event.notification.offsets) {
@@ -218,14 +247,6 @@ export function planEventReminders(event: CalendarEvent, ctx: PlanContext): Plan
       const sendAt = wallTimeToInstant(sendDate, offset.time);
       if (new Date(sendAt).getTime() <= ctx.now.getTime()) continue; // sem aviso retroativo
 
-      const values = {
-        'evento.titulo': event.title,
-        'evento.data': event.dates.kind === 'list' && occ.key !== 'main' ? formatDates({ ...event.dates, kind: 'single', start: occ.date, end: occ.date }) : formatDates(event.dates),
-        'evento.antecedencia': leadPhrase(offset.daysBefore),
-        'evento.marco': occ.milestone,
-        'evento.horario': horario,
-        'calendario.nome': ctx.calendarTitle,
-      };
       out.push({
         idempotencyKey: reminderKey(ctx.calendarId, event.uid, offset.id, occ.key),
         calendarId: ctx.calendarId,
@@ -233,8 +254,7 @@ export function planEventReminders(event: CalendarEvent, ctx: PlanContext): Plan
         offsetId: offset.id,
         occurrence: occ.date,
         sendAt,
-        title: renderTemplate(event.notification.pushTitle || DEFAULT_REMINDER_TITLE, values).text,
-        body: renderTemplate(event.notification.pushBody || DEFAULT_REMINDER_BODY, values).text,
+        ...renderReminder(source, occ, offset, ctx.calendarTitle),
         channel: 'push',
         offsetLabel: offsetLabel(offset),
         eventTitle: event.title,
@@ -252,10 +272,10 @@ export function planCalendarReminders(events: CalendarEvent[], ctx: PlanContext)
  * Compara os lembretes ativos (agendados ou aguardando configuração) com o
  * plano da versão nova. Envios já feitos nunca entram aqui — o passado não muda.
  */
-export function diffReminders(active: NotificationJob[], planned: PlannedReminder[]): ReminderDiff {
+export function diffReminders<P extends PlannedReminder>(active: NotificationJob[], planned: P[]): ReminderDiff<P> {
   const byKey = new Map(planned.map((p) => [p.idempotencyKey, p]));
   const plannedUids = new Set(planned.map((p) => p.eventUid));
-  const diff: ReminderDiff = { create: [], update: [], cancel: [], unchanged: 0 };
+  const diff: ReminderDiff<P> = { create: [], update: [], cancel: [], unchanged: 0 };
 
   for (const job of active) {
     const next = byKey.get(job.idempotencyKey);

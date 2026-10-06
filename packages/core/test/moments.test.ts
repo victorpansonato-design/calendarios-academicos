@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultNotificationRule, importanceForMoments, instantToWall, planEventReminders, reminderBlockReason, setReminderMoments } from '../src/schedule';
+import { defaultNotificationRule, instantToWall, planEventReminders, reminderBlockReason, setReminderMoments } from '../src/schedule';
 import { eventBlockers, openEventIssues } from '../src/validation';
 import { parseDateLabel } from '../src/dates';
 import { emptyReview } from '../src/validation';
@@ -24,7 +24,7 @@ function event(label: string, days: number[], time: string, times: { shift: null
     type: 'academic',
     category: null,
     color: null,
-    importance: importanceForMoments(days),
+    importance: 'medium',
     notification: { ...setReminderMoments(defaultNotificationRule(dates.kind === 'list' ? 'each' : 'start'), days, time), anchorConfirmed: true },
     sources: [],
     review: emptyReview(),
@@ -61,7 +61,7 @@ describe('momentos e horário do aviso', () => {
 
   it('"Não avisar" é uma escolha válida e não trava', () => {
     const e = event('25/08', [], '');
-    expect(e.importance).toBe('low');
+    expect(e.notification.enabled).toBe(false);
     expect(eventBlockers(e)).toEqual([]);
   });
 

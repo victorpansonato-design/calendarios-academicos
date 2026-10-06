@@ -11,18 +11,33 @@ import type {
   LifecycleRule,
   LifecycleStep,
   NotificationJob,
+  PlannedFavoriteReminder,
+  PublicCalendar,
+  ReminderDiff,
   ReviewState,
+  StudentEventMark,
+  StudentImpact,
   SystemStatus,
   User,
 } from '@calendarios/core';
 import {
   ACKNOWLEDGEABLE,
-  applyImportance,
+  buildStudentView,
+  canHide,
   checkPublishable,
+  coveredByCalendarReminders,
   diffReminders,
+  favoriteCancelReason,
+  IMPORTANCE_LABEL,
+  instantToWall,
+  planCalendarFavorites,
+  planFavoriteReminders,
+  STUDENT_ID_PATTERN,
+  suggestImportance,
+  todayIn,
+  toPublicCalendar,
   emptyReview,
   formatDates,
-  importanceForMoments,
   momentLabel,
   normalizeForCompare,
   openCalendarIssues,
@@ -44,6 +59,10 @@ import snapshot from './snapshot.json';
    avisos vêm do mesmo pacote @calendarios/core que a API usa.
 
    As alterações ficam só neste navegador (localStorage). Nada é enviado.
+
+   Para a visão do aluno abrir com conteúdo, o retrato chega com a importância
+   sugerida já aplicada e com a coorte (ingressantes/veteranos) confirmada nos
+   eventos em que o texto do PDF a declara — como a equipe faria.
    ========================================================================== */
 
 type Meta = Pick<Calendar, 'title' | 'year' | 'semester' | 'scope' | 'legend' | 'notes' | 'review' | 'modifiedFromSource'>;
@@ -59,12 +78,17 @@ interface CalendarRecord {
 
 interface State {
   generatedAt: string;
+  /** Formato do estado salvo: mudou → descarta o que estava no navegador. */
+  schema: number;
   calendars: CalendarRecord[];
   jobs: NotificationJob[];
   rules: LifecycleRule[];
+  /** Estrelas e "ocultar" dos alunos (prévias do portal e do app). */
+  marks: StudentEventMark[];
 }
 
 const STORAGE_KEY = 'calendarios-demo';
+const SCHEMA = 2;
 
 export class DemoError extends Error {
   constructor(
@@ -88,20 +112,35 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 function initialState(): State {
   return {
     generatedAt: snapshot.generatedAt,
+    schema: SCHEMA,
     calendars: snapshot.calendars.map((c) => {
       const calendar = c.detail.calendar as unknown as Calendar;
-      const events = c.detail.events as unknown as CalendarEvent[];
+      const events = (c.detail.events as unknown as CalendarEvent[]).map(seedEvent);
       const snap: Snap = { calendar: metaOf(calendar), events };
-      return {
+      const r: CalendarRecord = {
         calendar,
         events,
         versions: (c.versions as unknown as CalendarVersionSummary[]).map((v) => ({ ...v, snapshot: clone(snap) })),
         audit: c.audit as unknown as AuditEntry[],
         publishedHash: null,
       };
+      audit(r, 'event.suggest_importance', `Importância sugerida aplicada a ${events.length} evento(s) (demonstração)`);
+      return r;
     }),
     jobs: [],
     rules: snapshot.lifecycleRules as unknown as LifecycleRule[],
+    marks: [],
+  };
+}
+
+/** Importância sugerida + coorte declarada no texto (só ingressantes/veteranos). */
+function seedEvent(e: CalendarEvent): CalendarEvent {
+  const issue = e.review.issues.find((i) => i.code === 'audience_detected');
+  const detected = ((issue?.detail as { groups?: string[] } | undefined)?.groups ?? []).filter((g) => g === 'Ingressantes' || g === 'Veteranos');
+  return {
+    ...e,
+    importance: e.importance === 'unset' ? suggestImportance(e).importance : e.importance,
+    audience: detected.length && !e.audience.groups.length ? { ...e.audience, groups: detected } : e.audience,
   };
 }
 
@@ -110,7 +149,7 @@ function load(): State {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const s = JSON.parse(saved) as State;
-      if (s.generatedAt === snapshot.generatedAt) return s; // retrato novo descarta edições antigas
+      if (s.generatedAt === snapshot.generatedAt && s.schema === SCHEMA) return s; // retrato ou formato novo descarta edições antigas
     }
   } catch {
     /* sem armazenamento: começa do retrato */
@@ -213,8 +252,6 @@ function mergeEvent(existing: CalendarEvent, input: EventInput): CalendarEvent {
   const pdfChanged = PDF_FIELDS.some((k) => JSON.stringify(existing[k as keyof CalendarEvent]) !== JSON.stringify(input[k]));
   const datesChanged = JSON.stringify(existing.dates) !== JSON.stringify(input.dates);
   let notification = input.notification;
-  if (input.importance !== existing.importance && JSON.stringify(input.notification.offsets) === JSON.stringify(existing.notification.offsets))
-    notification = applyImportance(input.notification, input.importance);
   if (input.dates.kind === 'list' && !['each', 'first'].includes(notification.anchor)) notification = { ...notification, anchor: 'each' };
   if (input.dates.kind === 'range' && !['start', 'end'].includes(notification.anchor)) notification = { ...notification, anchor: 'start', anchorConfirmed: false };
   let review = existing.review;
@@ -248,6 +285,106 @@ function plan(r: CalendarRecord) {
 function reminderDiff(r: CalendarRecord) {
   const active = state.jobs.filter((j) => j.calendarId === r.calendar.id && j.kind === 'event_reminder' && (j.status === 'scheduled' || j.status === 'blocked'));
   return diffReminders(active, plan(r));
+}
+
+/* -- Visão do aluno ------------------------------------------------------- */
+
+/** A versão publicada (a mais recente marcada como publicada), ou null. */
+function publishedSnap(r: CalendarRecord) {
+  if (r.calendar.status === 'archived' || r.calendar.publishedVersion === null) return null;
+  return r.versions.find((v) => v.published) ?? null;
+}
+
+function publicOf(r: CalendarRecord, source: 'draft' | 'published'): PublicCalendar | null {
+  const meta = { ...r.calendar, id: r.calendar.id };
+  if (source === 'draft') return toPublicCalendar(meta, r.events, { version: r.calendar.version, publishedAt: null, source: 'draft' });
+  const v = publishedSnap(r);
+  if (!v) return null;
+  return toPublicCalendar({ ...meta, ...v.snapshot.calendar }, v.snapshot.events, { version: v.number, publishedAt: v.createdAt, source: 'published' });
+}
+
+function favoriteDiff(r: CalendarRecord): ReminderDiff<PlannedFavoriteReminder> {
+  const stars = state.marks.filter((m) => m.calendarId === r.calendar.id && m.mark === 'star');
+  const planned = planCalendarFavorites(r.events, stars, { calendarId: r.calendar.id, calendarTitle: r.calendar.title, now: new Date() });
+  const active = state.jobs.filter((j) => j.calendarId === r.calendar.id && j.kind === 'favorite_reminder' && (j.status === 'scheduled' || j.status === 'blocked'));
+  const diff = diffReminders(active, planned);
+  const byUid = new Map(r.events.map((e) => [e.uid, e]));
+  return { ...diff, cancel: diff.cancel.map((c) => ({ ...c, reason: favoriteCancelReason(c.job, byUid) })) };
+}
+
+function studentImpact(r: CalendarRecord): StudentImpact {
+  const fav = favoriteDiff(r);
+  const students = new Set([...fav.create.map((p) => p.studentId), ...fav.update.map((u) => u.after.studentId), ...fav.cancel.map((c) => (c.job.audience.type === 'student' ? c.job.audience.studentId : ''))]);
+  students.delete('');
+  return {
+    importantes: r.events.filter((e) => e.importance === 'high' || e.importance === 'medium').length,
+    unset: r.events.filter((e) => e.importance === 'unset').length,
+    withoutLegend: r.events.filter((e) => !e.category && !e.color).length,
+    favorites: { create: fav.create.length, update: fav.update.length, cancel: fav.cancel.length, students: students.size },
+  };
+}
+
+function favoriteJob(r: CalendarRecord, p: PlannedFavoriteReminder): NotificationJob {
+  return newJob({
+    kind: 'favorite_reminder',
+    channel: p.channel,
+    calendarId: r.calendar.id,
+    eventUid: p.eventUid,
+    audience: { type: 'student', studentId: p.studentId, label: `Aluno ${p.studentId}` },
+    title: p.title,
+    body: p.body,
+    sendAt: p.sendAt,
+    idempotencyKey: p.idempotencyKey,
+    createdBy: 'Aluno (portal/app)',
+    context: { calendarTitle: r.calendar.title, eventTitle: p.eventTitle, offsetLabel: p.offsetLabel },
+  });
+}
+
+/** Cria o envio ou reativa o mesmo registro cancelado — como a API. */
+function upsertFavorite(r: CalendarRecord, p: PlannedFavoriteReminder) {
+  const existing = state.jobs.find((j) => j.idempotencyKey === p.idempotencyKey);
+  if (!existing) state.jobs.push(favoriteJob(r, p));
+  else if (existing.status === 'canceled') Object.assign(existing, { status: 'scheduled', sendAt: p.sendAt, title: p.title, body: p.body, canceledReason: null });
+}
+
+function cancelFavorites(calendarId: string, studentId: string, eventUid: string, reason: string): number {
+  const active = state.jobs.filter(
+    (j) => j.kind === 'favorite_reminder' && j.calendarId === calendarId && j.eventUid === eventUid && j.audience.type === 'student' && j.audience.studentId === studentId && (j.status === 'scheduled' || j.status === 'blocked'),
+  );
+  active.forEach((j) => Object.assign(j, { status: 'canceled', canceledReason: reason }));
+  return active.length;
+}
+
+function studentId(v: string): string {
+  const s = decodeURIComponent(v);
+  if (!STUDENT_ID_PATTERN.test(s)) throw bad('Identificador do aluno inválido.');
+  return s;
+}
+
+function markOf(studentId: string, calendarId: string, eventUid: string) {
+  return state.marks.find((m) => m.studentId === studentId && m.calendarId === calendarId && m.eventUid === eventUid) ?? null;
+}
+
+function setMark(studentId: string, calendarId: string, eventUid: string, mark: StudentEventMark['mark'] | null) {
+  state.marks = state.marks.filter((m) => !(m.studentId === studentId && m.calendarId === calendarId && m.eventUid === eventUid));
+  if (mark) state.marks.push({ studentId, calendarId, eventUid, mark, updatedAt: iso() });
+}
+
+function studentReminders(studentId: string, calendarId: string, eventUid?: string) {
+  return state.jobs
+    .filter((j) => j.kind === 'favorite_reminder' && j.calendarId === calendarId && j.audience.type === 'student' && j.audience.studentId === studentId)
+    .filter((j) => !eventUid || j.eventUid === eventUid)
+    .filter((j) => ['scheduled', 'blocked', 'sent', 'demo_sent'].includes(j.status))
+    .map((j) => ({ eventUid: j.eventUid, sendAt: j.sendAt, status: j.status, offsetLabel: j.context.offsetLabel ?? '', title: j.title, body: j.body }));
+}
+
+function publishedEvent(calendarId: string, eventUid: string) {
+  const r = record(calendarId);
+  const v = publishedSnap(r);
+  if (!v) throw notFound('Calendário publicado');
+  const event = v.snapshot.events.find((e) => e.uid === eventUid && e.datesResolved);
+  if (!event) throw notFound('Evento');
+  return { r, v, event };
 }
 
 function newJob(p: Partial<NotificationJob> & Pick<NotificationJob, 'kind' | 'channel' | 'title' | 'body' | 'sendAt' | 'idempotencyKey' | 'audience'>): NotificationJob {
@@ -341,7 +478,7 @@ on('POST', '/api/calendars/:id/events', (m, b) => {
   const event: CalendarEvent = {
     ...input,
     dates: { ...input.dates, label: input.dates.label || formatDates(input.dates) },
-    notification: applyImportance(input.notification, input.importance),
+    notification: input.notification,
     id: uuid(),
     uid: uuid(),
     calendarId: r.calendar.id,
@@ -409,11 +546,10 @@ on('POST', '/api/calendars/:id/events/bulk-importance', (m, b) => {
   r.events = r.events.map((e) => {
     if (!ids.has(e.id) || e.importance === importance) return e;
     changed += 1;
-    const notification = applyImportance(e.notification, importance);
-    const anchorConfirmed = e.dates.kind === 'range' && (importance === 'medium' || importance === 'high') ? true : notification.anchorConfirmed;
-    return { ...e, importance, notification: { ...notification, anchorConfirmed }, updatedAt: iso(), updatedBy: user.name };
+    // importância só decide onde o evento aparece para o aluno; os avisos não mudam
+    return { ...e, importance, updatedAt: iso(), updatedBy: user.name };
   });
-  const label = { unset: 'não definida', low: 'baixa', medium: 'média', high: 'alta' }[importance];
+  const label = IMPORTANCE_LABEL[importance].toLowerCase();
   if (changed) commitEdit(r, `Importância "${label}" aplicada a ${changed} evento(s)`, 'event.bulk_importance', { eventIds: [...ids], importance });
   return { changed, ...detail(r) };
 });
@@ -425,7 +561,6 @@ on('POST', '/api/calendars/:id/events/bulk-reminders', (m, b) => {
   const days = (b.days as number[] | undefined) ?? [];
   const time = (b.time as string | null) ?? '';
   if (days.length && !time) throw bad('Informe o horário do aviso.');
-  const importance = importanceForMoments(days);
   let changed = 0;
   r.events = r.events.map((e) => {
     if (!ids.has(e.id)) return e;
@@ -433,7 +568,7 @@ on('POST', '/api/calendars/:id/events/bulk-reminders', (m, b) => {
     let notification = setReminderMoments(e.notification, days, days.length ? time : '');
     if (e.dates.kind === 'range' && days.length) notification = { ...notification, anchorConfirmed: true };
     if (e.dates.kind === 'list' && !['each', 'first'].includes(notification.anchor)) notification = { ...notification, anchor: 'each' };
-    return { ...e, importance, notification, updatedAt: iso(), updatedBy: user.name };
+    return { ...e, notification, updatedAt: iso(), updatedBy: user.name };
   });
   const what = days.length ? `${days.map(momentLabel).join(', ')}, às ${time.replace(':', 'h')}` : 'não avisar';
   if (changed) commitEdit(r, `Aviso "${what}" aplicado a ${changed} evento(s)`, 'event.bulk_reminders', { eventIds: [...ids], days, time });
@@ -487,7 +622,7 @@ on('POST', '/api/calendars/:id/return', (m) => {
 
 on('GET', '/api/calendars/:id/publish-preview', (m) => {
   const r = record(m[1]);
-  return { publishCheck: detail(r).publishCheck, diff: reminderDiff(r), status: r.calendar.status };
+  return { publishCheck: detail(r).publishCheck, diff: reminderDiff(r), status: r.calendar.status, studentImpact: studentImpact(r) };
 });
 
 on('POST', '/api/calendars/:id/publish', (m, b) => {
@@ -498,6 +633,7 @@ on('POST', '/api/calendars/:id/publish', (m, b) => {
   if (b.confirm !== true) throw bad('Confirme o impacto nos avisos antes de publicar.');
 
   const diff = reminderDiff(r);
+  const fav = favoriteDiff(r);
   r.calendar.status = 'published';
   touch(r);
   const version = addVersion(r, 'publish', `Publicado (${events.length} eventos)`, true);
@@ -524,8 +660,14 @@ on('POST', '/api/calendars/:id/publish', (m, b) => {
   for (const c of diff.cancel) Object.assign(state.jobs.find((j) => j.id === c.job.id)!, { status: 'canceled', canceledReason: c.reason });
   if (diff.create.length || diff.update.length || diff.cancel.length)
     audit(r, 'reminders.replan', `Avisos: ${diff.create.length} novo(s), ${diff.update.length} atualizado(s), ${diff.cancel.length} cancelado(s).`);
+  // lembretes de favorito acompanham a versão publicada
+  for (const p of fav.create) upsertFavorite(r, p);
+  for (const u of fav.update) Object.assign(state.jobs.find((j) => j.id === u.before.id)!, { sendAt: u.after.sendAt, title: u.after.title, body: u.after.body, status: 'scheduled' });
+  for (const c of fav.cancel) Object.assign(state.jobs.find((j) => j.id === c.job.id)!, { status: 'canceled', canceledReason: c.reason });
+  if (fav.create.length || fav.update.length || fav.cancel.length)
+    audit(r, 'favorites.replan', `Lembretes de favoritos: ${fav.create.length} novo(s), ${fav.update.length} atualizado(s), ${fav.cancel.length} cancelado(s).`);
   audit(r, 'calendar.publish', `Versão ${version.number} publicada.`, { versionId: version.id });
-  return { ...detail(r), diff };
+  return { ...detail(r), diff, favoriteDiff: { create: fav.create.length, update: fav.update.length, cancel: fav.cancel.length } };
 });
 
 on('POST', '/api/calendars/:id/archive', (m) => {
@@ -571,7 +713,121 @@ on('GET', '/api/calendars/:id/audit', (m) => ({ items: record(m[1]).audit }));
 
 on('GET', '/api/calendars/:id/reminders', (m) => {
   const r = record(m[1]);
-  return { draftPlan: plan(r), jobs: state.jobs.filter((j) => j.calendarId === r.calendar.id) };
+  const fav = state.jobs.filter((j) => j.calendarId === r.calendar.id && j.kind === 'favorite_reminder' && (j.status === 'scheduled' || j.status === 'blocked'));
+  return {
+    draftPlan: plan(r),
+    jobs: state.jobs.filter((j) => j.calendarId === r.calendar.id && j.kind !== 'favorite_reminder'),
+    favoriteSummary: { scheduled: fav.length, students: new Set(fav.map((j) => (j.audience.type === 'student' ? j.audience.studentId : ''))).size },
+  };
+});
+
+on('POST', '/api/calendars/:id/events/suggest-importance', (m, b) => {
+  const apply = b.apply === true;
+  const r = apply ? editable(m[1]) : record(m[1]);
+  const ids = Array.isArray(b.eventIds) && b.eventIds.length ? new Set((b.eventIds as unknown[]).map(String)) : null;
+  const onlyUnset = b.onlyUnset !== false;
+  const suggestions = r.events
+    .filter((e) => (!ids || ids.has(e.id)) && (!onlyUnset || e.importance === 'unset'))
+    .map((e) => {
+      const s = suggestImportance(e);
+      return { eventId: e.id, title: e.title, dateLabel: e.dates.label, from: e.importance, to: s.importance, ruleId: s.ruleId, reason: s.reason };
+    })
+    .filter((s) => s.from !== s.to);
+  if (!apply) return { suggestions, changed: 0 };
+  const byId = new Map(suggestions.map((s) => [s.eventId, s.to]));
+  let changed = 0;
+  r.events = r.events.map((e) => {
+    const to = byId.get(e.id);
+    if (!to) return e;
+    changed += 1;
+    return { ...e, importance: to, updatedAt: iso(), updatedBy: user.name };
+  });
+  if (changed) commitEdit(r, `Importância sugerida aplicada a ${changed} evento(s)`, 'event.suggest_importance', { changed });
+  return { suggestions, changed, ...detail(r) };
+});
+
+on('GET', '/api/calendars/:id/student-preview', (m, _b, q) => {
+  const pub = publicOf(record(m[1]), q.get('source') === 'published' ? 'published' : 'draft');
+  if (!pub) throw notFound('Calendário publicado');
+  return pub;
+});
+
+/* -- Portal do aluno e app (rotas públicas, sem chave na demonstração) ---- */
+
+on('GET', '/api/public/calendars', () => ({
+  items: state.calendars
+    .map((r) => publicOf(r, 'published'))
+    .filter((c) => c !== null)
+    .map((c) => ({ id: c.id, title: c.title, year: c.year, semester: c.semester, scope: c.scope, version: c.version, publishedAt: c.publishedAt })),
+}));
+
+on('GET', '/api/public/calendars/:id', (m) => {
+  const pub = publicOf(record(m[1]), 'published');
+  if (!pub) throw notFound('Calendário publicado');
+  return pub;
+});
+
+const STUDENT = '/api/public/students/:studentId/calendars/:calendarId';
+
+on('GET', `${STUDENT}/marks`, (m) => {
+  const sid = studentId(m[1]);
+  if (!publishedSnap(record(m[2]))) throw notFound('Calendário publicado');
+  const mine = state.marks.filter((x) => x.studentId === sid && x.calendarId === m[2]);
+  return { starred: mine.filter((x) => x.mark === 'star').map((x) => x.eventUid), hidden: mine.filter((x) => x.mark === 'hide').map((x) => x.eventUid), reminders: studentReminders(sid, m[2]) };
+});
+
+on('PUT', `${STUDENT}/events/:eventUid/star`, (m) => {
+  const sid = studentId(m[1]);
+  const { r, v, event } = publishedEvent(m[2], m[3]);
+  setMark(sid, m[2], m[3], 'star');
+  const covered = coveredByCalendarReminders(event);
+  const planned = covered ? [] : planFavoriteReminders(event, { calendarId: m[2], calendarTitle: v.snapshot.calendar.title, now: new Date(), studentId: sid });
+  planned.forEach((p) => upsertFavorite(r, p));
+  const first = planned[0] && instantToWall(planned[0].sendAt);
+  const note = covered
+    ? 'Você já recebe o aviso deste evento.'
+    : first
+      ? `Lembrete agendado para ${first.date.slice(8, 10)}/${first.date.slice(5, 7)} às ${first.time.replace(':', 'h')}.`
+      : 'O horário do lembrete já passou.';
+  return { mark: 'star', coveredByCalendar: covered, pushOptIn: null, reminders: studentReminders(sid, m[2], m[3]), note };
+});
+
+on('DELETE', `${STUDENT}/events/:eventUid/star`, (m) => {
+  const sid = studentId(m[1]);
+  if (!publishedSnap(record(m[2]))) throw notFound('Calendário publicado');
+  if (markOf(sid, m[2], m[3])?.mark === 'star') setMark(sid, m[2], m[3], null);
+  return { mark: null, canceled: cancelFavorites(m[2], sid, m[3], 'O aluno desmarcou o evento') };
+});
+
+on('PUT', `${STUDENT}/events/:eventUid/hide`, (m) => {
+  const sid = studentId(m[1]);
+  const { event } = publishedEvent(m[2], m[3]);
+  if (event.importance === 'high') throw conflict('Eventos de importância Alta não podem ser ocultados.');
+  if (!canHide(event.importance)) throw bad('Só eventos de importância Média podem ser ocultados dos Importantes.');
+  setMark(sid, m[2], m[3], 'hide');
+  return { mark: 'hide', canceled: cancelFavorites(m[2], sid, m[3], 'O aluno ocultou o evento') };
+});
+
+on('DELETE', `${STUDENT}/events/:eventUid/hide`, (m) => {
+  const sid = studentId(m[1]);
+  if (markOf(sid, m[2], m[3])?.mark === 'hide') setMark(sid, m[2], m[3], null);
+  return { mark: null };
+});
+
+on('GET', `${STUDENT}/view`, (m, _b, q) => {
+  const sid = studentId(m[1]);
+  const pub = publicOf(record(m[2]), 'published');
+  if (!pub) throw notFound('Calendário publicado');
+  const mine = state.marks.filter((x) => x.studentId === sid && x.calendarId === m[2]);
+  const cohort = q.get('cohort') === 'ingressantes' || q.get('cohort') === 'veteranos' ? (q.get('cohort') as 'ingressantes' | 'veteranos') : null;
+  return buildStudentView(pub, {
+    today: todayIn(new Date()),
+    cohort,
+    starred: mine.filter((x) => x.mark === 'star').map((x) => x.eventUid),
+    hidden: mine.filter((x) => x.mark === 'hide').map((x) => x.eventUid),
+    category: q.get('category'),
+    query: q.get('q') ?? undefined,
+  });
 });
 
 /* -- Importação: desligada na demonstração -------------------------------- */
@@ -602,7 +858,7 @@ on('GET', '/api/notifications/jobs', (_m, _b, q) => {
   const items = state.jobs
     .filter((j) => {
       if (status && !status.includes(j.status)) return false;
-      if (q.get('kind') && j.kind !== q.get('kind')) return false;
+      if (q.get('kind') ? j.kind !== q.get('kind') : j.kind === 'favorite_reminder') return false; // favoritos só quando pedidos
       if (q.get('channel') && j.channel !== q.get('channel')) return false;
       if (q.get('calendarId') && j.calendarId !== q.get('calendarId')) return false;
       if (q.get('from') && j.sendAt < q.get('from')!) return false;

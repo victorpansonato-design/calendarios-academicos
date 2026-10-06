@@ -77,11 +77,19 @@ export function need(req: FastifyRequest, permission: Permission): User {
   return user;
 }
 
-/** Sistemas institucionais se identificam por chave, não por sessão. */
-export function needIntegrationKey(ctx: AppContext, req: FastifyRequest, reply: FastifyReply, kind: 'integration' | 'public'): boolean {
-  const expected = kind === 'integration' ? ctx.config.integrations.apiKey : ctx.config.integrations.publicApiKey;
-  if (kind === 'integration' && !expected) {
-    reply.code(503).send({ error: 'Integração aguardando configuração (INTEGRATION_API_KEY).' });
+/**
+ * Sistemas institucionais se identificam por chave, não por sessão.
+ *   integration — acontecimentos e preferências (INTEGRATION_API_KEY, obrigatória);
+ *   public      — leitura dos calendários publicados (PUBLIC_API_KEY, opcional);
+ *   student     — marcações do aluno pelo backend do portal/app (STUDENT_API_KEY, obrigatória:
+ *                 a API confia no aluno que ele informa).
+ */
+export function needIntegrationKey(ctx: AppContext, req: FastifyRequest, reply: FastifyReply, kind: 'integration' | 'public' | 'student'): boolean {
+  const keys = ctx.config.integrations;
+  const expected = kind === 'integration' ? keys.apiKey : kind === 'student' ? keys.studentApiKey : keys.publicApiKey;
+  if (kind !== 'public' && !expected) {
+    const name = kind === 'integration' ? 'INTEGRATION_API_KEY' : 'STUDENT_API_KEY';
+    reply.code(503).send({ error: `${kind === 'student' ? 'Marcações do aluno' : 'Integração'} aguardando configuração (${name}).` });
     return false;
   }
   if (!expected) return true; // leitura pública sem chave configurada = aberta

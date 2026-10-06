@@ -4,7 +4,9 @@ Sistema para a equipe acadêmica **adicionar calendários em PDF → escolher os
 
 - Leitura real dos PDFs (texto, posição, links, cores da grade e da legenda), sem publicação automática.
 - Calendário em 4 abas: Calendário (igual à página 1 do PDF), Mês a mês, Eventos (edição e aviso em lote) e Informações (dados, cores e histórico restaurável).
-- Avisos por importância (baixa / média / alta), agenda com idempotência e registro de execução.
+- Importância editorial (Alta / Média / Baixa, com sugestão automática) que monta o calendário **Importantes** do aluno; avisos para todos configurados à parte, com agenda idempotente e registro de execução.
+- **Visão do aluno**: prévias fiéis do Portal do aluno e do app Grupo Anchieta, com cores da legenda do PDF, próxima data, estrela (lembrete só para o aluno, mesmo texto do evento), ocultar e "Adicionar à agenda" (.ics).
+- Design system do novo Portal do Aluno (template Anchieta: shadcn/ui, Tailwind 4, Inter + JetBrains Mono).
 - Contratos prontos para a TI ligar SSO, portal/app, Lyceum, push e e-mail.
 
 ## Como rodar
@@ -24,7 +26,7 @@ Para testar o fluxo de envios sem mandar nada a ninguém, use `DEMO_MODE=true` n
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | API + interface com recarga automática |
-| `npm test` | 87 testes (núcleo, extração com o PDF real, uploads, fluxo ponta a ponta, acontecimentos) |
+| `npm test` | 136 testes (núcleo, visão do aluno, .ics, extração com o PDF real, uploads, fluxo ponta a ponta, favoritos, acontecimentos, demonstração) |
 | `npm run lint` | checagem de tipos dos três pacotes |
 | `npm run build` | lint + build de produção da interface (`apps/web/dist`) |
 | `npm start` | API em produção; serve também a interface compilada na mesma porta |

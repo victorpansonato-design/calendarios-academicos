@@ -1,66 +1,104 @@
 import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { motion } from 'motion/react';
 import { press } from '../../lib/motion';
+import { cn } from '../../lib/utils';
 
 /* ==========================================================================
    Button
    --------------------------------------------------------------------------
-   Buttons are pills, surfaces are 12px rectangles. Two shapes for the whole
-   app, so the silhouette alone says whether a thing is a place or an action —
-   which is why a button needs no outline to read as a button.
+   As variantes e medidas do template Anchieta (shadcn new-york):
 
-   Variants carry meaning rather than a look:
+     default     — a ação mais importante da tela. Uma por vista. Azul
+                   institucional cheio.
+     secondary   — alternativa real à principal.
+     outline     — ação neutra com contorno.
+     ghost       — terciária; vive dentro de linhas densas e barras.
+     destructive — destrutiva ou irreversível (excluir evento, tirar do ar).
+     link        — ação em forma de link.
 
-     primary   — the single most important action on the surface. One per view.
-                 The one place institutional blue fills a shape.
-     secondary — a real alternative to primary. Filled with the inset surface,
-                 never outlined.
-     ghost     — tertiary; lives inside dense rows and toolbars.
-     danger    — destructive or irreversible (deleting an event, archiving).
-
-   Press feedback is uniform across the app: a 2.5% scale-down. Nothing else.
+   Por cima do template ficam três coisas nossas: o retorno de toque uniforme
+   (`whileTap={press}`, um encolhimento de 2,5%), os atalhos `icon`/`iconRight`
+   e o botão quadrado só de ícone (`square`). Os nomes antigos continuam
+   valendo — primary → default, danger → destructive, md → default — e o
+   padrão continua `secondary`/`sm`, porque é nele que a maior parte das telas
+   se apoia.
    ========================================================================== */
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type Size = 'xs' | 'sm' | 'md';
+export const buttonVariants = cva(
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // O template pinta o hover de outline/ghost com --accent (o amarelo da
+        // marca). Aqui o hover é neutro: amarelo fica para a assinatura (filete,
+        // indicador da navegação), não para dezenas de botões de linha.
+        outline: 'border border-border bg-background hover:bg-muted hover:text-foreground',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'text-foreground/80 hover:bg-muted hover:text-foreground',
+        link: 'text-primary underline-offset-4 hover:underline',
+      },
+      size: {
+        default: 'h-10 px-4 py-2',
+        sm: 'h-9 px-3',
+        lg: 'h-11 px-8',
+        xs: 'h-8 gap-1.5 px-3 text-xs',
+        icon: 'h-10 w-10',
+        'icon-sm': 'h-9 w-9',
+        'icon-xs': 'h-8 w-8',
+      },
+    },
+    defaultVariants: {
+      variant: 'secondary',
+      size: 'sm',
+    },
+  },
+);
 
-const VARIANT: Record<Variant, string> = {
-  primary: 'bg-brand text-on-brand hover:bg-brand-hover',
-  secondary: 'bg-surface-2 text-ink hover:bg-surface-3',
-  ghost: 'text-ink-2 hover:bg-surface-2 hover:text-ink',
-  danger: 'bg-crit text-white hover:brightness-110',
+type CvaVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
+type CvaSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
+
+/** Nomes antigos aceitos por compatibilidade com as telas existentes. */
+type Variant = CvaVariant | 'primary' | 'danger';
+type Size = CvaSize | 'md';
+
+const VARIANT_ALIAS: Record<Variant, CvaVariant> = {
+  default: 'default',
+  destructive: 'destructive',
+  outline: 'outline',
+  secondary: 'secondary',
+  ghost: 'ghost',
+  link: 'link',
+  primary: 'default',
+  danger: 'destructive',
+};
+
+const SIZE_ALIAS: Record<Size, CvaSize> = {
+  default: 'default',
+  sm: 'sm',
+  lg: 'lg',
+  xs: 'xs',
+  icon: 'icon',
+  'icon-sm': 'icon-sm',
+  'icon-xs': 'icon-xs',
+  md: 'default',
+};
+
+/** Tamanho → versão quadrada (só ícone). */
+const SQUARE: Partial<Record<CvaSize, CvaSize>> = {
+  default: 'icon',
+  sm: 'icon-sm',
+  xs: 'icon-xs',
+  lg: 'icon',
 };
 
 /**
- * Geometry is split from padding on purpose. Emitting both `px-3.5` and `px-0`
- * and hoping the second wins does not work: Tailwind decides the order in the
- * stylesheet, not the class attribute, so `px-3.5` won and a 32px square button
- * ended up with 28px of padding, squeezing its 14px icon down to 4px. A square
- * button now simply never receives horizontal padding.
- */
-const SIZE: Record<Size, string> = {
-  xs: 'h-7 text-[12px] gap-1.5 rounded-full',
-  sm: 'h-8 text-[13px] gap-1.5 rounded-full',
-  md: 'h-9.5 text-[13px] gap-2 rounded-full',
-};
-
-const PAD: Record<Size, string> = {
-  xs: 'px-3',
-  sm: 'px-3.5',
-  md: 'px-4.5',
-};
-
-const SQUARE: Record<Size, string> = {
-  xs: 'w-7',
-  sm: 'w-8',
-  md: 'w-9.5',
-};
-
-/**
- * React's native drag/animation handlers collide with Framer Motion's
- * same-named props, so they are omitted rather than cast away — nothing in the
- * app drags a button, and silencing the clash with `any` would hide real errors.
+ * Os handlers nativos de arrastar/animar colidem com os de mesmo nome do
+ * Motion; ficam de fora em vez de silenciados com `any` — nada no app arrasta
+ * um botão.
  */
 type NativeButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -72,7 +110,7 @@ export interface ButtonProps extends NativeButtonProps {
   size?: Size;
   icon?: ReactNode;
   iconRight?: ReactNode;
-  /** Renders as a square icon-only control. */
+  /** Botão quadrado, só com ícone. */
   square?: boolean;
   full?: boolean;
 }
@@ -85,7 +123,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     iconRight,
     square = false,
     full = false,
-    className = '',
+    className,
     children,
     disabled,
     type = 'button',
@@ -93,7 +131,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   },
   ref,
 ) {
-  const shape = square ? SQUARE[size] : PAD[size];
+  const base = SIZE_ALIAS[size];
+  const resolvedSize = square ? SQUARE[base] ?? base : base;
 
   return (
     <motion.button
@@ -101,16 +140,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       whileTap={disabled ? undefined : press}
       disabled={disabled}
-      className={[
-        'inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap',
-        'transition-colors duration-150 select-none',
-        'disabled:pointer-events-none disabled:opacity-45',
-        SIZE[size],
-        shape,
-        VARIANT[variant],
-        full ? 'w-full' : '',
-        className,
-      ].join(' ')}
+      className={cn(buttonVariants({ variant: VARIANT_ALIAS[variant], size: resolvedSize }), square && 'px-0', full && 'w-full', className)}
       {...rest}
     >
       {icon}
@@ -120,22 +150,22 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
-/** Text link styled as an inline action — used at the end of card footers. */
+/** Link de texto como ação discreta — usado no fim de rodapés de cartão. */
 export function LinkButton({
   children,
   icon,
   iconRight,
-  className = '',
+  className,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; iconRight?: ReactNode }) {
   return (
     <button
       type="button"
-      className={[
-        'inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2',
-        'transition-colors hover:text-ink disabled:opacity-45',
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-sm text-xs font-medium text-primary underline-offset-4',
+        'transition-colors hover:underline disabled:opacity-50',
         className,
-      ].join(' ')}
+      )}
       {...rest}
     >
       {icon}

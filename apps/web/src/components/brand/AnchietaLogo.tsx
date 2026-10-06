@@ -44,19 +44,3 @@ export function AnchietaLogo({ className = '' }: { className?: string }) {
     </svg>
   );
 }
-
-/**
- * Marca + nome do sistema, na barra lateral e no login. Manter o nome da
- * unidade junto da marca é o que faz a ferramenta parecer institucional.
- */
-export function BrandLockup({ subtitle = 'Calendários acadêmicos' }: { subtitle?: string }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <AnchietaLogo className="h-9 w-auto" />
-      <div className="flex items-center gap-2 pl-0.5">
-        <span className="h-3 w-[2px] rounded-full bg-brand-2" />
-        <span className="text-[12px] leading-none font-semibold text-ink-3">{subtitle}</span>
-      </div>
-    </div>
-  );
-}

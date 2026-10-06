@@ -8,3 +8,7 @@ export * from './validation';
 export * from './permissions';
 export * from './lifecycle';
 export * from './scope';
+export * from './importance';
+export * from './favorites';
+export * from './student';
+export * from './ics';
