@@ -11,7 +11,7 @@
  Conferência / edição ── REST ───────────▶ calendários, eventos, versões, auditoria (SQLite)
  Publicar ──────────────────────────────▶ versão publicada + replanejamento dos avisos
                                            agendador ──▶ gateway de push* / e-mail*  ──▶ alunos
- Portal / app* ◀──── GET /api/public ─────  só versões publicadas
+ Portal / app* ◀──── GET /api/public ─────  só versões publicadas (+ estrela/ocultar do aluno)
  Lyceum e outros* ── POST /api/integrations/student-events ──▶ regras de acontecimento ──▶ agenda
                                                                          * = a TI liga
 ```
@@ -42,6 +42,7 @@ Definido em [packages/core/src/types.ts](../packages/core/src/types.ts) e [apps/
 | `calendar_versions` | Fotografias imutáveis (dados gerais + eventos). A publicada é a que o portal lê. |
 | `notification_jobs`, `job_attempts` | Agenda de envios (chave de idempotência única) e registro de cada tentativa. |
 | `lifecycle_rules`, `student_events`, `student_preferences` | Regras de acontecimento, acontecimentos recebidos (idempotentes) e preferências de canal. |
+| `student_event_marks` | Estrela e "ocultar" de cada aluno por evento (`uid`), mantidos entre versões. |
 | `audit_log` | Quem fez o quê, quando — só cresce. |
 | `users`, `sessions` | Pessoas e sessões. |
 
@@ -77,7 +78,20 @@ Em [packages/core/src/schedule.ts](../packages/core/src/schedule.ts). Cada event
 - **Quando** — "No dia", "1 dia antes", "3 dias antes" (qualquer combinação; nenhuma = "Não avisar");
 - **A que horas** — um horário de envio para todos os momentos. Começa **vazio** e é **obrigatório**: evento com aviso e sem horário trava a publicação (`reminder_time_missing`), e o lote (`POST /events/bulk-reminders`) recusa aplicar sem horário.
 
-Se o evento tem horário e o aviso "no dia" sai depois dele, aparece o alerta `reminder_after_start` (não trava). O campo `importance` continua existindo para compatibilidade e é derivado: sem momentos = `low`, 1 momento = `medium`, 2 ou mais = `high`.
+Se o evento tem horário e o aviso "no dia" sai depois dele, aparece o alerta `reminder_after_start` (não trava).
+
+### Importância × avisos
+
+São decisões **separadas**:
+
+- **Importância** (Alta / Média / Baixa) decide **onde o aluno vê** o evento: Alta e Média montam sozinhas o calendário "Importantes" do aluno (Alta não pode ser ocultada; Média pode); Baixa fica só no calendário completo. "Não definida" conta como Baixa e vira um aviso agregado na publicação (`importance_unset`, não trava). O sistema **sugere** a importância por regras ([packages/core/src/importance.ts](../packages/core/src/importance.ts)) — prova, último dia, inscrição em DP, 48 horas e fim do semestre → Alta; feriado, início de aulas, inscrições e prazos → Média; monitoria, lançamento de nota, eventos on-line e o resto → Baixa — e uma pessoa aplica.
+- **Aviso** (`notification.enabled` + momentos + horário) decide se sai **push para todo o público** do calendário. A importância só sugere avisos no editor; nunca liga avisos sozinha nem em lote.
+
+Evento sem cor da legenda vira o aviso agregado `legend_missing` (não trava): no portal e no app ele aparece em cinza.
+
+### Favoritos do aluno
+
+Em [packages/core/src/favorites.ts](../packages/core/src/favorites.ts). A estrela leva o evento para "Importantes" e agenda um lembrete **só para aquele aluno** (`favorite_reminder`), com o mesmo texto do aviso do evento (`renderReminder`), 1 dia antes às 09h — ou nada, se o calendário já avisa todos (sem duplicar). Os lembretes são reconciliados a cada publicação (remarca, cancela por evento removido ou por passar a ter aviso geral) e cancelados ao arquivar; as marcações ficam e voltam a valer ao republicar. O disparo é em lotes (`SCHEDULER_BATCH_SIZE`) e confere a estrela de novo na hora de enviar.
 
 - Fuso **America/Sao_Paulo**, resolvido pelo `Intl` (continua certo se houver horário de verão).
 - Períodos: a antecedência conta do início ou do fim. O sistema sugere (fim para prazos e "último dia"); no editor a pessoa escolhe, e na classificação em lote a sugestão é aplicada com aviso explícito na confirmação. Listas de datas: antes de cada data ou só antes da primeira.

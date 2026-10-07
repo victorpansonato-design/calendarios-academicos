@@ -173,6 +173,11 @@ export const EVENT_TYPE_LABEL: Record<EventType, string> = {
   other: 'Outro',
 };
 
+/**
+ * Importância editorial: decide ONDE o evento aparece para o aluno, não se ele
+ * recebe push (isso é `notification`). Alta e Média entram automaticamente em
+ * "Importantes"; Baixa (e não definida) fica só no calendário completo.
+ */
 export type Importance = 'unset' | 'low' | 'medium' | 'high';
 
 export const IMPORTANCE_LABEL: Record<Importance, string> = {
@@ -203,7 +208,7 @@ export interface EventNotificationRule {
   anchorConfirmed: boolean;
   pushTitle: string;
   pushBody: string;
-  /** A equipe editou os lembretes à mão — mudar a importância não os reseta. */
+  /** A equipe editou os lembretes à mão. */
   customized: boolean;
 }
 
@@ -249,7 +254,8 @@ export type IssueCode =
   | 'page_without_text'
   | 'grid_day_without_event'
   | 'reminder_time_missing'
-  | 'reminder_after_start';
+  | 'reminder_after_start'
+  | 'legend_missing';
 
 export interface ReviewIssue {
   code: IssueCode;
@@ -450,7 +456,8 @@ export interface AuditEntry {
 
 export type Channel = 'push' | 'email';
 
-export type JobKind = 'event_reminder' | 'additional' | 'lifecycle';
+/** `favorite_reminder`: lembrete de um evento que o aluno marcou com estrela — vai só para ele. */
+export type JobKind = 'event_reminder' | 'additional' | 'lifecycle' | 'favorite_reminder';
 
 export type JobStatus =
   | 'scheduled'
@@ -537,9 +544,9 @@ export interface AdditionalCommunicationInput {
 }
 
 /** Resultado de comparar os avisos agendados com os que a versão nova exige. */
-export interface ReminderDiff {
-  create: PlannedReminder[];
-  update: { before: NotificationJob; after: PlannedReminder }[];
+export interface ReminderDiff<P extends PlannedReminder = PlannedReminder> {
+  create: P[];
+  update: { before: NotificationJob; after: P }[];
   cancel: { job: NotificationJob; reason: string }[];
   unchanged: number;
 }
@@ -556,6 +563,80 @@ export interface PlannedReminder {
   channel: Channel;
   offsetLabel: string;
   eventTitle: string;
+}
+
+/** Lembrete de favorito: o mesmo aviso, endereçado a um aluno só. */
+export interface PlannedFavoriteReminder extends PlannedReminder {
+  studentId: string;
+}
+
+/* -- Visão do aluno (portal e app) --------------------------------------- */
+
+/** Marcação do aluno num evento: estrela (leva para Importantes) ou ocultar (só Média). */
+export type StudentMark = 'star' | 'hide';
+
+export interface StudentEventMark {
+  studentId: string;
+  calendarId: string;
+  eventUid: string;
+  mark: StudentMark;
+  updatedAt: ISOInstant;
+}
+
+/** Importância como o aluno enxerga: não definida conta como baixa. */
+export type StudentImportance = 'high' | 'medium' | 'low';
+
+/** Evento como sai na leitura pública (portal/app). Nunca expõe rascunho, pendências ou autoria. */
+export interface PublicCalendarEvent {
+  uid: string;
+  title: string;
+  description: string;
+  dates: EventDates;
+  times: EventTime[];
+  location: string | null;
+  urls: string[];
+  notes: string[];
+  /** Recortes de público (vazio = público inteiro do calendário). */
+  audience: string[];
+  type: EventType;
+  category: string | null;
+  color: string | null;
+  importance: Importance;
+  studentImportance: StudentImportance;
+  /** O calendário já manda push deste evento para todos — favoritar não duplica. */
+  calendarReminder: { enabled: boolean; labels: string[] };
+  /** Texto do push do evento (o favorito usa exatamente este). */
+  pushTitle: string;
+  pushBody: string;
+  anchor: ReminderAnchor;
+  /** Redação do PDF, para "ver texto oficial". Null em eventos criados à mão. */
+  officialText: string | null;
+}
+
+export interface PublicCalendar {
+  id: string;
+  version: number;
+  publishedAt: ISOInstant | null;
+  /** `draft` só aparece na prévia da equipe. */
+  source: 'published' | 'draft';
+  title: string;
+  year: number | null;
+  semester: 1 | 2 | null;
+  scope: CalendarScope;
+  legend: LegendEntry[];
+  notes: { id: string; text: string }[];
+  /** Arquivo original, para o link "PDF oficial". */
+  sourceFileId: string | null;
+  sourceFileName: string | null;
+  events: PublicCalendarEvent[];
+}
+
+/** O que a publicação muda para os alunos (mostrado antes de publicar). */
+export interface StudentImpact {
+  importantes: number;
+  unset: number;
+  withoutLegend: number;
+  favorites: { create: number; update: number; cancel: number; students: number };
 }
 
 /* -- Acontecimentos do aluno --------------------------------------------- */

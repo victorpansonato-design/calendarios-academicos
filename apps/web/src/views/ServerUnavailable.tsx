@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RotateCcw, ServerOff } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import { Button } from '../components/ui/button';
 import { Card, EmptyState } from '../components/ui/Surfaces';
 
 /* Uma tela só, em linguagem simples, quando o servidor do sistema não
@@ -29,7 +29,7 @@ export function ServerUnavailable({ onRetry }: { onRetry: () => Promise<unknown>
             >
               {busy ? 'Tentando…' : 'Tentar de novo'}
             </Button>
-            <p className="max-w-md text-[11.5px] leading-relaxed text-ink-4">
+            <p className="max-w-md text-[11.5px] leading-relaxed text-muted-foreground">
               Para a TI: a interface não encontrou a API. Publique a API (apps/api) num servidor com disco e defina VITE_API_URL no build da interface — ver README, "Publicar".
             </p>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import type { CalendarVersionSummary } from '@calendarios/core';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card, CardHeader, Skeleton } from '../../components/ui/Surfaces';
 import { Pill } from '../../components/ui/Badges';
 import { Confirm } from '../../components/ui/Overlay';
@@ -55,13 +55,13 @@ export function HistoryTab({ ctx }: { ctx: DetailContext }) {
             <Skeleton className="h-24 w-full" />
           </div>
         ) : (
-          <ul className="divide-y divide-hairline border-t border-hairline">
+          <ul className="divide-y divide-border border-t border-border">
             {versions.data?.items.map((v) => (
               <li key={v.id} className="flex items-start gap-3 px-5 py-3">
-                <span className="mt-0.5 w-9 shrink-0 font-mono text-[12px] font-medium text-ink-3">v{v.number}</span>
+                <span className="mt-0.5 w-9 shrink-0 font-mono text-[12px] font-medium text-muted-foreground">v{v.number}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-ink">{v.summary}</p>
-                  <p className="text-[12px] text-ink-3">
+                  <p className="text-[13px] font-medium text-foreground">{v.summary}</p>
+                  <p className="text-[12px] text-muted-foreground">
                     {KIND[v.kind]} · {v.createdBy} · {whenLong(v.createdAt)} · {v.eventCount} eventos
                   </p>
                 </div>

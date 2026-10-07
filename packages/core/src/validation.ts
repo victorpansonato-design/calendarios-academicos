@@ -8,7 +8,7 @@ import type { Calendar, CalendarEvent, IssueCode, ReviewIssue, ReviewState } fro
      · gravadas na importação (texto divergente entre páginas, associação de
        baixa confiança, data que não foi entendida…);
      · calculadas ao vivo a partir do estado atual (importância não definida,
-       âncora de período não conferida, título vazio).
+       evento sem cor da legenda, âncora de período não conferida, título vazio).
 
    Uma pendência `blocker` impede a publicação até ser resolvida — corrigindo
    o dado ou, quando faz sentido, marcando como conferida. Algumas NÃO podem
@@ -45,7 +45,15 @@ export const FIX_REQUIRED: ReadonlySet<IssueCode> = new Set<IssueCode>([
   'anchor_unconfirmed',
   'reminder_time_missing',
   'reminder_after_start',
+  'legend_missing',
 ]);
+
+/** Observações que valem por evento, mas na publicação viram UM aviso agregado. */
+const AGGREGATED: Partial<Record<IssueCode, (n: number) => string>> = {
+  importance_unset: (n) =>
+    `${n} evento(s) sem importância definida. Para os alunos, contam como Baixa: aparecem só no calendário completo.`,
+  legend_missing: (n) => `${n} evento(s) sem cor da legenda. No portal e no app aparecem em cinza, fora dos filtros por cor.`,
+};
 
 /**
  * O que de fato impede publicar. Os calendários da instituição são bem
@@ -82,9 +90,16 @@ export function liveEventIssues(event: CalendarEvent): ReviewIssue[] {
       code: 'importance_unset',
       severity: 'info',
       field: 'importance',
-      message: 'Aviso ainda não escolhido. Enquanto isso, nenhum aviso sai para este evento.',
+      message: 'Importância não definida. Para os alunos, conta como Baixa (aparece só no calendário completo).',
     });
-  const avisa = event.notification.enabled && (event.importance === 'medium' || event.importance === 'high');
+  if (!event.category && !event.color)
+    out.push({
+      code: 'legend_missing',
+      severity: 'info',
+      field: 'category',
+      message: 'Sem cor da legenda. No portal e no app o evento aparece em cinza.',
+    });
+  const avisa = event.notification.enabled;
   if (avisa && event.notification.offsets.some((o) => !o.time))
     out.push({
       code: 'reminder_time_missing',
@@ -102,13 +117,7 @@ export function liveEventIssues(event: CalendarEvent): ReviewIssue[] {
       field: 'notification',
       message: `O aviso do dia sai às ${sameDay.time.replace(':', 'h')}, mas o evento começa às ${firstTime.replace(':', 'h')}. Os alunos seriam avisados depois do início.`,
     });
-  if (
-    event.datesResolved &&
-    event.dates.kind === 'range' &&
-    event.notification.enabled &&
-    (event.importance === 'medium' || event.importance === 'high') &&
-    !event.notification.anchorConfirmed
-  )
+  if (event.datesResolved && event.dates.kind === 'range' && avisa && !event.notification.anchorConfirmed)
     out.push({
       code: 'anchor_unconfirmed',
       severity: 'blocker',
@@ -170,10 +179,18 @@ export function checkPublishable(calendar: Pick<Calendar, 'review' | 'title' | '
   for (const issue of openCalendarIssues(calendar)) {
     (issue.severity === 'blocker' ? blockers : warnings).push({ eventId: null, eventTitle: null, issue });
   }
+  const grouped = new Map<IssueCode, string[]>();
   for (const event of events) {
     for (const issue of openEventIssues(event)) {
+      if (issue.severity !== 'blocker' && AGGREGATED[issue.code]) {
+        grouped.set(issue.code, [...(grouped.get(issue.code) ?? []), event.id]);
+        continue;
+      }
       (issue.severity === 'blocker' ? blockers : warnings).push({ eventId: event.id, eventTitle: event.title, issue });
     }
+  }
+  for (const [code, eventIds] of grouped) {
+    warnings.push({ eventId: null, eventTitle: null, issue: { code, severity: 'info', message: AGGREGATED[code]!(eventIds.length), detail: { eventIds } } });
   }
   if (events.length === 0)
     blockers.push({ eventId: null, eventTitle: null, issue: { code: 'date_unparsed', severity: 'blocker', message: 'O calendário não tem nenhum evento.' } });

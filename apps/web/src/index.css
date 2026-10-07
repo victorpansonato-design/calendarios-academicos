@@ -1,286 +1,315 @@
 /* ==========================================================================
-   UniAnchieta · Design System (DESIGN_SYSTEM.md §3, §4 e §7, na íntegra)
+   Design system — Template Anchieta (template/template/template/src/index.css)
    --------------------------------------------------------------------------
-   Nenhum componente escreve hex. Toda cor resolve por token; o dark mode é
-   uma troca de tokens, não um segundo conjunto de classes.
+   Tokens, tipografia, sombras e raios vêm do template, sem alteração: é o que
+   põe a gestão dos calendários no mesmo ecossistema do Portal do Aluno.
+   Moldura (`shell`, cinza) separada da janela de trabalho (`canvas`, branca);
+   azul institucional para ação e seleção; amarelo da marca só como assinatura.
 
-   ÚNICA exceção funcional deste sistema: as cores da LEGENDA do calendário,
-   que vêm do PDF institucional e identificam categorias de evento. Elas são
-   dado (vivem no banco), não estilo — ver "Exceção funcional" no fim.
+   Nenhum componente escreve hex. ÚNICA exceção funcional: as cores da
+   LEGENDA do calendário, que vêm do PDF institucional e identificam
+   categorias de evento. Elas são dado (vivem no banco), não estilo — ver
+   "Exceção funcional" no fim.
    ========================================================================== */
 
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-shell: var(--shell);
+  --color-shell-foreground: var(--shell-foreground);
+  --color-canvas: var(--canvas);
+  --color-canvas-foreground: var(--canvas-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'JetBrains Mono', ui-monospace, monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --shadow-hairline: 0 0 0 1px oklch(39.341% 0.16812 263.91 / 8%);
+  --shadow-card: 0 2px 8px -2px oklch(39.341% 0.16812 263.91 / 5%), 0 0 0 1px oklch(39.341% 0.16812 263.91 / 5%);
+  --shadow-elevated: 0 8px 24px -6px oklch(39.341% 0.16812 263.91 / 9%), 0 0 0 1px oklch(39.341% 0.16812 263.91 / 5%);
+
+  --shadow-2xs: 0 1px 2px oklch(39.341% 0.16812 263.91 / 4%);
+  --shadow-xs: 0 2px 4px -1px oklch(39.341% 0.16812 263.91 / 5%);
+  --shadow-sm: 0 2px 6px -1px oklch(39.341% 0.16812 263.91 / 6%), 0 1px 2px -1px oklch(39.341% 0.16812 263.91 / 4%);
+  --shadow: var(--shadow-sm);
+  --shadow-md: 0 6px 14px -3px oklch(39.341% 0.16812 263.91 / 7%), 0 2px 5px -2px oklch(39.341% 0.16812 263.91 / 5%);
+  --shadow-lg: 0 12px 28px -6px oklch(39.341% 0.16812 263.91 / 9%), 0 4px 10px -4px oklch(39.341% 0.16812 263.91 / 5%);
+  --shadow-xl: 0 20px 40px -8px oklch(39.341% 0.16812 263.91 / 11%), 0 8px 16px -8px oklch(39.341% 0.16812 263.91 / 6%);
+  --shadow-2xl: 0 32px 64px -12px oklch(39.341% 0.16812 263.91 / 14%);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* -- Extras do app -------------------------------------------------------- */
+  --color-muted-strong: var(--muted-strong);
+}
 
 :root {
-  /* -- Superfícies: a hierarquia visual inteira, feita de quatro cinzas ---- */
-  --canvas: #f3f4f6;
-  --canvas-subtle: #eef0f2;
-  --surface: #ffffff;
-  --surface-2: #eef0f2;
-  --surface-3: #e6e8eb;
-  --surface-hover: #f3f4f6;
+  --radius: 0.5rem;
 
-  /* -- Divisores (nunca molduras) ----------------------------------------- */
-  --hairline: #e6e8eb;
-  --hairline-strong: #d8dbe0;
+  /* Brand */
+  --brand-blue: oklch(39.341% 0.16812 263.91);
+  --brand-blue-strong: oklch(32% 0.17 263.91);
+  --brand-blue-soft: oklch(95% 0.025 263.91);
+  --brand-yellow: oklch(82% 0.165 86);
+  --brand-yellow-strong: oklch(72% 0.155 82);
+  --brand-yellow-soft: oklch(96% 0.05 95);
 
-  /* -- Escada de texto ---------------------------------------------------- */
-  --ink: #101317;
-  --ink-2: #414852;
-  --ink-3: #6b7280;
-  --ink-4: #9aa1ac;
+  /* Neutrals tintados em direção ao azul */
+  --background: oklch(99.2% 0.003 264);
+  --foreground: oklch(18% 0.025 264);
+  --surface: oklch(98.621% 0.00693 248.267); /* ≈ #eef2fa - preenchimento sutil de blocos */
+  --surface-foreground: oklch(18% 0.025 264);
 
-  /* -- Marca: cirúrgica. Botão primário, nav ativo, arco do donut. -------- */
-  --brand: #00509d;
-  --brand-hover: #003f7d;
-  --brand-2: #00509d;
-  --brand-3: #0f6fc4;
-  --brand-soft: #e8eef5;
-  --brand-soft-2: #dce7f1;
-  --brand-border: #e8eef5;
-  --brand-text: #00457f;
-  --on-brand: #ffffff;
+  /* Shell = moldura do app (sidebar + respiro). Canvas = janela flutuante do conteúdo. */
+  --shell: oklch(95.8% 0.008 264);
+  --shell-foreground: oklch(22% 0.03 264);
+  --canvas: oklch(100% 0 0);
+  --canvas-foreground: oklch(18% 0.025 264);
+
+  --card: oklch(100% 0 0);
+  --card-foreground: oklch(18% 0.025 264);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(18% 0.025 264);
+
+  --primary: var(--brand-blue);
+  --primary-foreground: oklch(99% 0.005 264);
+  --primary-soft: var(--brand-blue-soft);
+
+  --secondary: oklch(95.5% 0.008 264);
+  --secondary-foreground: oklch(22% 0.03 264);
+
+  --muted: oklch(96.5% 0.006 264);
+  --muted-foreground: oklch(48% 0.022 264);
+
+  --accent: var(--brand-yellow);
+  --accent-foreground: oklch(22% 0.04 86);
+  --accent-soft: var(--brand-yellow-soft);
+
+  --destructive: oklch(58% 0.21 27);
+  --destructive-foreground: oklch(99% 0.005 264);
+  --destructive-soft: oklch(96% 0.03 27);
+
+  --success: oklch(56% 0.13 152);
+  --success-foreground: oklch(99% 0.005 264);
+  --success-soft: oklch(95% 0.04 152);
+
+  --warning: var(--brand-yellow-strong);
+  --warning-foreground: oklch(30% 0.08 82);
+  --warning-soft: var(--brand-yellow-soft);
+
+  --border: oklch(92% 0.01 264);
+  --border-strong: oklch(86% 0.014 264);
+  --input: oklch(92% 0.01 264);
+  --ring: oklch(55% 0.13 263.91);
+
+  --chart-1: var(--brand-blue);
+  --chart-2: var(--brand-yellow);
+  --chart-3: oklch(60% 0.13 200);
+  --chart-4: oklch(56% 0.13 152);
+  --chart-5: oklch(58% 0.21 27);
+
+  /* A sidebar faz parte da moldura: herda --shell para fundir com o fundo. */
+  --sidebar: var(--shell);
+  --sidebar-foreground: var(--shell-foreground);
+  --sidebar-primary: var(--brand-blue);
+  --sidebar-primary-foreground: oklch(99% 0.005 264);
+  --sidebar-accent: oklch(92% 0.014 264);
+  --sidebar-accent-foreground: oklch(22% 0.03 264);
+  --sidebar-border: oklch(90% 0.014 264);
+  --sidebar-ring: var(--brand-blue);
+
+  /* -- Extras do app -------------------------------------------------------- */
+  /* Um passo acima de --muted: trilho do controle segmentado, item em destaque. */
+  --muted-strong: oklch(93% 0.01 264);
+  /* O véu atrás de modais e painéis (com desfoque — ver .scrim). */
+  --scrim: oklch(18% 0.025 264 / 0.4);
   /* Azul do wordmark registrado — nunca re-tingido. */
   --brand-mark: #1567b8;
-
-  /* -- Superfície de ênfase: um passo de contraste, sem matiz, sem grid --- */
-  --band: #eef0f2;
-  --band-2: #e6e8eb;
-  --band-ink: #101317;
-  --band-ink-2: #6b7280;
-  --band-ink-3: #9aa1ac;
-  --band-line: #e6e8eb;
-  --band-inset: #ffffff;
-
-  /* -- Status: cinza → âmbar → âmbar → vermelho. Um vermelho, no fim. ----- */
-  --ok: #6b7280;
-  --ok-ink: #414852;
-  --ok-soft: #eef0f2;
-  --ok-border: #e6e8eb;
-  --warn: #9a7128;
-  --warn-ink: #7d5c1f;
-  --warn-soft: #f5f1e8;
-  --warn-border: #ece3d1;
-  --risk: #a15c07;
-  --risk-ink: #874d05;
-  --risk-soft: #f6f0e7;
-  --risk-border: #eddfc9;
-  --crit: #b42318;
-  --crit-ink: #971d14;
-  --crit-soft: #f8eceb;
-  --crit-border: #f0d5d2;
-  --info: #00509d;
-  --info-soft: #e8eef5;
-  --info-border: #dce7f1;
-
-  /* -- Chrome ------------------------------------------------------------- */
-  --focus: #00509d;
-  --scrim: rgb(16 19 23 / 0.4);
-  --track: #e6e8eb;
-  --skeleton: #eaecf0;
-
-  /* -- Elevação: só overlays ---------------------------------------------- */
-  --shadow-raised: none;
-  --shadow-overlay:
-    0 1px 2px rgb(16 19 23 / 0.06), 0 8px 24px -6px rgb(16 19 23 / 0.12),
-    0 24px 56px -12px rgb(16 19 23 / 0.14);
-  --shadow-band: none;
+  /* Tinta do número do dia sobre a cor da legenda (escolhida por contraste — lib/color.ts). */
+  --day-ink-dark: oklch(18% 0.025 264);
+  --day-ink-light: oklch(99% 0.005 264);
+  /* Fundo da grade de um mês e da casa de dia sem cor. */
+  --day-grid: var(--muted);
+  --day-empty: var(--card);
 
   color-scheme: light;
 }
 
 .dark {
-  --canvas: #0c0d0f;
-  --canvas-subtle: #101215;
-  --surface: #16181b;
-  --surface-2: #1d1f23;
-  --surface-3: #24272c;
-  --surface-hover: #1f2226;
+  --background: oklch(15% 0.022 264);
+  --foreground: oklch(96% 0.006 264);
+  --surface: oklch(19% 0.025 264);
+  --surface-foreground: oklch(96% 0.006 264);
 
-  --hairline: #262a2f;
-  --hairline-strong: #343941;
+  /* No escuro a moldura afunda e o canvas sobe, mantendo a leitura de janela. */
+  --shell: oklch(12.5% 0.02 264);
+  --shell-foreground: oklch(92% 0.006 264);
+  --canvas: oklch(19.5% 0.026 264);
+  --canvas-foreground: oklch(96% 0.006 264);
 
-  --ink: #f2f4f6;
-  --ink-2: #c3c9d1;
-  --ink-3: #8b929c;
-  --ink-4: #626973;
+  --card: oklch(20% 0.028 264);
+  --card-foreground: oklch(96% 0.006 264);
+  --popover: oklch(20% 0.028 264);
+  --popover-foreground: oklch(96% 0.006 264);
 
-  --brand: #2b7cc9;
-  --brand-hover: #3b8cd9;
-  --brand-2: #4d9ae0;
-  --brand-3: #35b6ec;
-  --brand-soft: #16222f;
-  --brand-soft-2: #1a2c3d;
-  --brand-border: #16222f;
-  --brand-text: #7fb6e6;
-  --on-brand: #ffffff;
+  --primary: oklch(65% 0.15 263.91);
+  --primary-foreground: oklch(15% 0.025 264);
+  --primary-soft: oklch(28% 0.08 263.91);
+
+  --secondary: oklch(24% 0.03 264);
+  --secondary-foreground: oklch(96% 0.006 264);
+
+  --muted: oklch(22% 0.025 264);
+  --muted-foreground: oklch(68% 0.018 264);
+
+  --accent: oklch(82% 0.165 86);
+  --accent-foreground: oklch(18% 0.04 86);
+  --accent-soft: oklch(28% 0.07 86);
+
+  --destructive: oklch(65% 0.2 27);
+  --destructive-foreground: oklch(96% 0.006 264);
+  --destructive-soft: oklch(28% 0.08 27);
+
+  --success: oklch(68% 0.14 152);
+  --success-foreground: oklch(15% 0.025 264);
+  --success-soft: oklch(26% 0.05 152);
+
+  --warning: oklch(75% 0.16 86);
+  --warning-foreground: oklch(84% 0.06 92);
+  --warning-soft: oklch(28% 0.07 86);
+
+  --border: oklch(26% 0.028 264);
+  --border-strong: oklch(34% 0.03 264);
+  --input: oklch(26% 0.028 264);
+  --ring: oklch(65% 0.15 263.91);
+
+  --chart-1: oklch(65% 0.15 263.91);
+  --chart-2: oklch(82% 0.165 86);
+  --chart-3: oklch(70% 0.13 200);
+  --chart-4: oklch(68% 0.14 152);
+  --chart-5: oklch(65% 0.2 27);
+
+  --sidebar: var(--shell);
+  --sidebar-foreground: var(--shell-foreground);
+  --sidebar-primary: oklch(65% 0.15 263.91);
+  --sidebar-primary-foreground: oklch(15% 0.025 264);
+  --sidebar-accent: oklch(17.5% 0.024 264);
+  --sidebar-accent-foreground: oklch(92% 0.006 264);
+  --sidebar-border: oklch(21% 0.026 264);
+  --sidebar-ring: oklch(65% 0.15 263.91);
+
+  /* -- Extras do app -------------------------------------------------------- */
+  --muted-strong: oklch(25% 0.028 264);
+  --scrim: oklch(8% 0.02 264 / 0.66);
   --brand-mark: #2b83d4;
-
-  --band: #1d1f23;
-  --band-2: #24272c;
-  --band-ink: #f2f4f6;
-  --band-ink-2: #8b929c;
-  --band-ink-3: #626973;
-  --band-line: #262a2f;
-  --band-inset: #16181b;
-
-  --ok: #8b929c;
-  --ok-ink: #c3c9d1;
-  --ok-soft: #1d1f23;
-  --ok-border: #262a2f;
-  --warn: #b99552;
-  --warn-ink: #d0b17a;
-  --warn-soft: #201c14;
-  --warn-border: #3a3222;
-  --risk: #cd8a45;
-  --risk-ink: #e0a970;
-  --risk-soft: #231a12;
-  --risk-border: #40301f;
-  --crit: #e0554b;
-  --crit-ink: #f08a82;
-  --crit-soft: #241614;
-  --crit-border: #452421;
-  --info: #4d9ae0;
-  --info-soft: #16222f;
-  --info-border: #1a2c3d;
-
-  --focus: #4d9ae0;
-  --scrim: rgb(4 5 7 / 0.66);
-  --track: #262a2f;
-  --skeleton: #1c1f23;
-
-  --shadow-raised: none;
-  --shadow-overlay:
-    0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.6),
-    0 32px 64px -16px rgb(0 0 0 / 0.7);
-  --shadow-band: none;
+  --day-ink-dark: oklch(18% 0.025 264);
+  --day-ink-light: oklch(99% 0.005 264);
+  --day-grid: var(--muted);
+  --day-empty: var(--card);
 
   color-scheme: dark;
 }
 
-@theme inline {
-  --color-canvas: var(--canvas);
-  --color-canvas-subtle: var(--canvas-subtle);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-surface-hover: var(--surface-hover);
-
-  --color-hairline: var(--hairline);
-  --color-hairline-strong: var(--hairline-strong);
-
-  --color-ink: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-ink-4: var(--ink-4);
-
-  --color-brand: var(--brand);
-  --color-brand-hover: var(--brand-hover);
-  --color-brand-2: var(--brand-2);
-  --color-brand-3: var(--brand-3);
-  --color-brand-soft: var(--brand-soft);
-  --color-brand-soft-2: var(--brand-soft-2);
-  --color-brand-border: var(--brand-border);
-  --color-brand-text: var(--brand-text);
-  --color-on-brand: var(--on-brand);
-
-  --color-band: var(--band);
-  --color-band-2: var(--band-2);
-  --color-band-ink: var(--band-ink);
-  --color-band-ink-2: var(--band-ink-2);
-  --color-band-ink-3: var(--band-ink-3);
-  --color-band-line: var(--band-line);
-  --color-band-inset: var(--band-inset);
-
-  --color-ok: var(--ok);
-  --color-ok-ink: var(--ok-ink);
-  --color-ok-soft: var(--ok-soft);
-  --color-ok-border: var(--ok-border);
-  --color-warn: var(--warn);
-  --color-warn-ink: var(--warn-ink);
-  --color-warn-soft: var(--warn-soft);
-  --color-warn-border: var(--warn-border);
-  --color-risk: var(--risk);
-  --color-risk-ink: var(--risk-ink);
-  --color-risk-soft: var(--risk-soft);
-  --color-risk-border: var(--risk-border);
-  --color-crit: var(--crit);
-  --color-crit-ink: var(--crit-ink);
-  --color-crit-soft: var(--crit-soft);
-  --color-crit-border: var(--crit-border);
-  --color-info: var(--info);
-  --color-info-soft: var(--info-soft);
-  --color-info-border: var(--info-border);
-
-  --color-track: var(--track);
-  --color-skeleton: var(--skeleton);
-  --color-focus: var(--focus);
-
-  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  /* Dois raios de verdade. `xs`/`sm` só para chip inline e controle miúdo;
-     tudo que é superfície usa 12px — inclusive `lg`, `xl` e `2xl`. */
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 12px;
-  --radius-xl: 12px;
-  --radius-2xl: 12px;
-
-  --shadow-raised: var(--shadow-raised);
-  --shadow-overlay: var(--shadow-overlay);
-  --shadow-band: var(--shadow-band);
-}
-
 @layer base {
-  /* Toda borda que alguém desenhar já nasce hairline — não precisa dizer a cor. */
-  * { border-color: var(--hairline); }
-
+  * {
+    @apply border-border outline-ring/50;
+    outline: none;
+  }
   html {
-    background-color: var(--canvas);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
     -webkit-text-size-adjust: 100%;
-    scrollbar-gutter: stable;   /* a página não pula quando o scroll aparece */
   }
-
   body {
-    margin: 0;
-    min-height: 100vh;
-    background-color: var(--canvas);
-    color: var(--ink);
+    @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-optical-sizing: auto;
-    letter-spacing: -0.006em;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.04em;
+    font-feature-settings: 'ss01', 'ss02', 'calt', 'zero';
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum', 'zero';
+  }
+  ::selection {
+    background: var(--brand-yellow);
+    color: oklch(22% 0.04 86);
   }
 
-  h1, h2, h3 { letter-spacing: -0.02em; }
-
-  .font-mono, [class*='font-mono'] {
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
+  /* -- Regras do app por cima do template ------------------------------------
+     O template zera o outline de tudo (cada primitiva desenha o próprio ring).
+     Aqui o teclado continua sempre visível, em qualquer elemento focável. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
   }
 
-  button, input, select, textarea {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
     font: inherit;
-    letter-spacing: inherit;
     color: inherit;
   }
-
-  button:not(:disabled) { cursor: pointer; }
-
-  :focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-    border-radius: var(--radius-xs);
-  }
-  :focus:not(:focus-visible) { outline: none; }
-
-  ::selection { background-color: var(--brand-2); color: #fff; }
-  ::placeholder { color: var(--ink-4); }
 
   /* Ícone nativo de date/time some no dark — inverte. */
   .dark input[type='date']::-webkit-calendar-picker-indicator,
@@ -290,20 +319,50 @@
 }
 
 @layer utilities {
-  .tabular { font-variant-numeric: tabular-nums; }
+  .anchieta-rule {
+    position: relative;
+  }
+  .anchieta-rule::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    height: 2px;
+    width: 48px;
+    background: var(--brand-yellow);
+    border-radius: 2px;
+  }
+
+  .anchieta-rule-full::after {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, var(--brand-yellow) 0, var(--brand-yellow) 48px, var(--border) 48px, var(--border) 100%);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 
   /* Scrollbar: presente, mas quieta. */
-  .scroll-slim { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
-  .scroll-slim::-webkit-scrollbar { width: 8px; height: 8px; }
-  .scroll-slim::-webkit-scrollbar-track { background: transparent; }
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .scroll-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
   .scroll-slim::-webkit-scrollbar-thumb {
-    background: var(--hairline-strong);
+    background: var(--border-strong);
     border: 2px solid transparent;
     background-clip: content-box;
     border-radius: 9999px;
   }
   .scroll-slim::-webkit-scrollbar-thumb:hover {
-    background: var(--ink-4);
+    background: var(--muted-foreground);
     background-clip: content-box;
   }
 
@@ -314,44 +373,63 @@
     -webkit-backdrop-filter: blur(14px) saturate(115%);
   }
 
-  /* Superfície de ênfase — plana. */
-  .band-surface { background-color: var(--band); }
-  .band-grid::before { content: none; }
-
-  /* Indicador "ao vivo": uma pulsação calma, nunca uma festa. */
-  .pulse-dot { position: relative; }
-  .pulse-dot::after {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 9999px;
-    border: 1.5px solid currentColor;
-    opacity: 0;
-    animation: csa-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  }
-  @keyframes csa-pulse {
-    0%        { transform: scale(0.7);  opacity: 0.55; }
-    70%, 100% { transform: scale(1.45); opacity: 0; }
-  }
-
   /* Skeleton */
   .shimmer {
-    background-image: linear-gradient(
-      90deg,
-      var(--skeleton) 0%,
-      var(--surface-3) 40%,
-      var(--skeleton) 80%
-    );
+    background-image: linear-gradient(90deg, var(--muted) 0%, var(--muted-strong) 40%, var(--muted) 80%);
     background-size: 200% 100%;
     animation: csa-shimmer 1.4s ease-in-out infinite;
   }
-  @keyframes csa-shimmer { to { background-position: -200% 0; } }
-
-  /* Impressão: extração de relatório executivo. */
-  @media print {
-    .print\:hidden { display: none !important; }
-    .print-report { background: #fff !important; color: #000 !important; }
+  @keyframes csa-shimmer {
+    to {
+      background-position: -200% 0;
+    }
   }
+
+  /* Spinner discreto para "Lendo…" */
+  .spin {
+    animation: csa-spin 0.9s linear infinite;
+  }
+  @keyframes csa-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+/* Sonner Toast Overrides */
+[data-sonner-toaster] {
+  z-index: 999999 !important;
+  pointer-events: none !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+[data-radix-dialog-overlay] {
+  pointer-events: none !important;
+}
+
+[data-radix-dialog-content] {
+  pointer-events: auto !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
 }
 
 /* Troca de tema: o tema novo é revelado em círculo (ver lib/theme.ts).
@@ -361,14 +439,44 @@
   animation: none;
   mix-blend-mode: normal;
 }
-::view-transition-new(root) { z-index: 2; }
-::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) {
+  z-index: 2;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Impressão: só o conteúdo — sem a moldura, sem a barra lateral, sem scroll
+   interno cortando a página. */
+@media print {
+  [data-slot='sidebar'],
+  [data-app-header] {
+    display: none !important;
+  }
+  [data-slot='sidebar-wrapper'],
+  [data-slot='sidebar-inset'],
+  [data-canvas-scroll] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .day-cell,
+  [data-swatch] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }
 
@@ -378,6 +486,10 @@
    A célula do dia recebe a cor da categoria por `--day-fill` / `--day-corner`
    (definidos inline a partir do dado). O triângulo de canto reproduz o PDF:
    "datas com mais de uma cor possuem mais de um evento programado no dia".
+
+   Cores claras do PDF (amarelo, verde-água) somem sobre o branco do canvas;
+   um contorno interno, escurecido a partir da própria cor, segura a borda
+   sem mudar o preenchimento — a cor exata continua sendo o dado.
    ========================================================================== */
 
 @layer components {
@@ -385,8 +497,10 @@
     background-color: var(--day-fill, transparent);
     background-image: linear-gradient(225deg, var(--day-corner, transparent) 0 30%, transparent 30%);
   }
-
-  /* Spinner discreto para "Lendo…" */
-  .spin { animation: csa-spin 0.9s linear infinite; }
-  @keyframes csa-spin { to { transform: rotate(360deg); } }
+  .day-cell[data-filled] {
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--day-fill) 78%, black);
+  }
+  [data-swatch] {
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--swatch, transparent) 78%, black);
+  }
 }

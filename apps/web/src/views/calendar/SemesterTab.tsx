@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Card, CardHeader, EmptyState } from '../../components/ui/Surfaces';
 import { MonthCard } from '../../components/calendar/MonthCard';
 import { Legend } from '../../components/calendar/Legend';
@@ -53,7 +53,7 @@ export function SemesterTab({ ctx, index }: { ctx: DetailContext; index: DayInde
           ))}
         </div>
       </Card>
-      <Card className="self-start xl:sticky xl:top-24">
+      <Card className="self-start xl:sticky top-4">
         <CardHeader title="Legenda" subtitle="Clique para destacar os dias de uma categoria." />
         <div className="mt-4">
           <Legend legend={calendar.legend} events={events} highlight={highlight} onHighlight={setHighlight} />

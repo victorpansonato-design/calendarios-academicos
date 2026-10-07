@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { drawerVariants, modalVariants, scrimVariants } from '../../lib/motion';
-import { Button } from './Button';
+import { Button } from './button';
 
 /* ==========================================================================
    Modal & Drawer
@@ -12,7 +12,8 @@ import { Button } from './Button';
 
      · The app behind is blurred and desaturated, not just dimmed — the sheet
        reads as floating glass over the workspace rather than a box on a grey
-       rectangle.
+       rectangle. The sheet itself wears the template's dialog skin
+       (background, border, 12px radius, blue-tinted shadow).
      · Escape closes. Clicking the scrim closes. The close button closes.
      · Focus moves into the sheet on open, is trapped inside while open, and
        returns to the trigger on close.
@@ -158,27 +159,27 @@ export function Modal({
             exit="exit"
             className={[
               'relative flex w-full flex-col overflow-hidden outline-none',
-              'rounded-2xl bg-surface shadow-overlay',
+              'rounded-xl border border-border bg-background text-foreground shadow-xl',
               'max-h-[86vh]',
               MODAL_WIDTH[size],
             ].join(' ')}
           >
-            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-hairline px-5 py-4">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div className="relative flex min-w-0 items-start gap-3">
                 {icon && (
-                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-2">
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-foreground/80">
                     {icon}
                   </div>
                 )}
                 <div className="min-w-0">
                   {eyebrow && (
-                    <div className="mb-1 text-[12px] font-medium text-ink-3">{eyebrow}</div>
+                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">{eyebrow}</div>
                   )}
-                  <h2 id={titleId} className="text-[15px] leading-tight font-semibold text-ink">
+                  <h2 id={titleId} className="font-display text-[18px] leading-tight font-medium text-foreground">
                     {title}
                   </h2>
                   {subtitle && (
-                    <p className="mt-1 text-[12px] leading-relaxed text-ink-3">{subtitle}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
                   )}
                 </div>
               </div>
@@ -187,7 +188,7 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 aria-label="Fechar"
-                className="relative -mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-surface-2 hover:text-ink"
+                className="relative -mt-0.5 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -196,7 +197,7 @@ export function Modal({
             <div className="scroll-slim min-h-0 flex-1 overflow-y-auto">{children}</div>
 
             {footer && (
-              <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-hairline bg-surface-2/60 px-5 py-3.5">
+              <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-muted/50 px-5 py-3.5">
                 {footer}
               </footer>
             )}
@@ -252,7 +253,7 @@ export function Drawer({ open, onClose, children, width = 'lg', label }: DrawerP
             exit="exit"
             className={[
               'relative flex h-full w-full flex-col overflow-hidden outline-none',
-              'border-l border-hairline bg-surface shadow-overlay',
+              'border-l border-border bg-background text-foreground shadow-lg',
               DRAWER_WIDTH[width],
             ].join(' ')}
           >
@@ -307,7 +308,7 @@ export function Confirm({
         </>
       }
     >
-      <div className="px-5 py-4 text-[13px] leading-relaxed text-ink-2">{message}</div>
+      <div className="px-5 py-4 text-sm leading-relaxed text-foreground/80">{message}</div>
     </Modal>
   );
 }

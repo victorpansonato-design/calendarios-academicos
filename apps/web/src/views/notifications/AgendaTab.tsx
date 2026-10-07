@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Repeat, Send, Smartphone, UserRound } from 'lucide-react';
+import { Mail, Repeat, Send, Smartphone, Star, UserRound } from 'lucide-react';
 import type { JobKind, JobStatus, NotificationJob, SystemStatus } from '@calendarios/core';
 import { instantToWall } from '@calendarios/core';
-import { Button } from '../../components/ui/Button';
+import { Button } from '../../components/ui/button';
 import { Callout, Card, EmptyState, Row, Skeleton } from '../../components/ui/Surfaces';
 import { SearchInput, Segmented } from '../../components/ui/Fields';
 import { Pill } from '../../components/ui/Badges';
@@ -37,16 +37,17 @@ function hashParam(name: string): string | null {
 }
 
 export function KindTag({ kind }: { kind: JobKind }) {
-  const icon = kind === 'event_reminder' ? <Repeat className="h-3 w-3" /> : kind === 'additional' ? <Send className="h-3 w-3" /> : <UserRound className="h-3 w-3" />;
+  const icon =
+    kind === 'event_reminder' ? <Repeat className="h-3 w-3" /> : kind === 'additional' ? <Send className="h-3 w-3" /> : kind === 'favorite_reminder' ? <Star className="h-3 w-3" /> : <UserRound className="h-3 w-3" />;
   return (
-    <Pill dot={false} icon={icon} solid={kind === 'additional'} className={kind === 'additional' ? 'bg-surface-3' : ''}>
+    <Pill dot={false} icon={icon} solid={kind === 'additional'} className={kind === 'additional' ? 'bg-muted-strong' : ''}>
       {JOB_KIND[kind]}
     </Pill>
   );
 }
 
 export function ChannelIcon({ channel }: { channel: 'push' | 'email' }) {
-  return channel === 'push' ? <Smartphone className="h-3.5 w-3.5 text-ink-4" aria-label="Push" /> : <Mail className="h-3.5 w-3.5 text-ink-4" aria-label="E-mail" />;
+  return channel === 'push' ? <Smartphone className="h-3.5 w-3.5 text-muted-foreground/70" aria-label="Push" /> : <Mail className="h-3.5 w-3.5 text-muted-foreground/70" aria-label="E-mail" />;
 }
 
 export function AgendaTab({ status }: { status: SystemStatus | null }) {
@@ -140,19 +141,19 @@ export function AgendaTab({ status }: { status: SystemStatus | null }) {
           <div>
             {[...groups.entries()].map(([date, list]) => (
               <section key={date}>
-                <h3 className="sticky top-[64px] z-[1] border-b border-hairline bg-surface/95 px-5 py-2 text-[12px] font-semibold text-ink-3 backdrop-blur first-letter:uppercase lg:top-[74px]">{longDate(date)}</h3>
-                <ul className="divide-y divide-hairline">
+                <h3 className="sticky top-0 z-1 border-b border-border bg-canvas/95 px-5 py-2 text-[12px] font-semibold text-muted-foreground backdrop-blur first-letter:uppercase">{longDate(date)}</h3>
+                <ul className="divide-y divide-border">
                   {list.map((j) => (
                     <li key={j.id}>
                       <Row onClick={() => setOpenJob(j.id)} tone={j.status === 'failed' ? 'crit' : 'plain'} className="px-5 py-3">
                         <div className="grid gap-x-4 gap-y-1 md:grid-cols-[56px_minmax(0,1fr)_auto] md:items-center">
-                          <span className="font-mono text-[12px] font-medium text-ink-2">{instantToWall(j.sendAt).time.replace(':', 'h')}</span>
+                          <span className="font-mono text-[12px] font-medium text-foreground/80">{instantToWall(j.sendAt).time.replace(':', 'h')}</span>
                           <div className="min-w-0">
-                            <p className="flex items-center gap-2 truncate text-[13px] font-medium text-ink">
+                            <p className="flex items-center gap-2 truncate text-[13px] font-medium text-foreground">
                               <ChannelIcon channel={j.channel} />
                               <span className="truncate">{j.title}</span>
                             </p>
-                            <p className="truncate text-[12px] text-ink-3">
+                            <p className="truncate text-[12px] text-muted-foreground">
                               {j.context.eventTitle ?? j.context.ruleName ?? j.body} · {j.audience.label}
                             </p>
                           </div>

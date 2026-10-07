@@ -1,28 +1,28 @@
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { ChevronRight, Inbox } from 'lucide-react';
+import { calloutVariants } from './callout';
+import { LABEL_TEXT } from './Fields';
 import { emphasis, press } from '../../lib/motion';
+import { cn } from '../../lib/utils';
 
 /* ==========================================================================
-   Surfaces & layout primitives
+   Superfícies e primitivas de layout
    --------------------------------------------------------------------------
-   A card is a lighter surface and a 12px radius. That is the whole recipe.
+   O cartão do template Anchieta: fundo `card`, borda, raio de 12px e a
+   sombra sutil tingida de azul (`shadow-card`). Sobre a janela branca do
+   canvas, é a borda que separa um bloco do outro.
 
-   No border: a hairline around every box turns a dense screen into a stack of
-   picture frames, and the eye has to parse the frame before it can read the
-   content. Contrast alone separates a card from the canvas, with less ink.
+   Blocos de ênfase sem moldura (`inset`/`band`) usam o preenchimento sutil
+   `surface`. Os títulos de página e de seção usam a fonte de exibição do
+   template (JetBrains Mono), e a página assina com o filete amarelo.
 
-   No shadow either. Nothing on a page is floating — it is laid out. Only
-   overlays, which genuinely sit above the app, cast one.
-
-   Hairlines still exist, but only as dividers: between rows of a list, between
-   sections of a card, under a section label. A line that separates is useful.
-   A line that encloses is decoration.
+   As APIs são as mesmas de antes — as telas não mudaram, só a pele.
    ========================================================================== */
 
 export function Card({
   children,
-  className = '',
+  className,
   padded = true,
   tone = 'plain',
   as: Tag = 'section',
@@ -30,52 +30,46 @@ export function Card({
   children: ReactNode;
   className?: string;
   padded?: boolean;
-  /** `inset` and `band` are both "one step of contrast" — no hue, no frame. */
+  /** `inset` e `band` são o preenchimento sutil, sem borda. */
   tone?: 'plain' | 'inset' | 'band';
   as?: 'section' | 'div' | 'article' | 'aside';
 }) {
-  const toneClass = tone === 'plain' ? 'bg-surface' : 'bg-surface-2';
+  const toneClass = tone === 'plain' ? 'border border-border bg-card text-card-foreground shadow-card' : 'bg-surface text-surface-foreground';
 
-  return (
-    <Tag className={['rounded-xl', toneClass, padded ? 'p-5' : '', className].join(' ')}>
-      {children}
-    </Tag>
-  );
+  return <Tag className={cn('rounded-xl', toneClass, padded && 'p-5', className)}>{children}</Tag>;
 }
 
+/** Cabeçalho de cartão — o SectionHeading do template. */
 export function CardHeader({
   title,
   subtitle,
   eyebrow,
   action,
-  className = '',
+  className,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
-  /** Use only when it names a real section. Not on every card. */
+  /** Só quando nomeia uma seção de verdade. Não em todo cartão. */
   eyebrow?: ReactNode;
   action?: ReactNode;
   className?: string;
 }) {
   return (
-    <div className={`relative flex items-start justify-between gap-4 ${className}`}>
+    <div className={cn('relative flex items-start justify-between gap-4', className)}>
       <div className="min-w-0">
-        {eyebrow && (
-          <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-ink-3">
-            {eyebrow}
-          </div>
-        )}
-        <h2 className="text-[15px] leading-tight font-semibold text-ink">{title}</h2>
-        {subtitle && (
-          <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-ink-3">{subtitle}</p>
-        )}
+        {eyebrow && <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{eyebrow}</div>}
+        <h2 className="font-display text-[15px] leading-tight font-medium text-foreground">{title}</h2>
+        {subtitle && <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{subtitle}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
     </div>
   );
 }
 
-/* -- Page header ---------------------------------------------------------- */
+/* -- Cabeçalho de página ---------------------------------------------------
+   O PageHeader do template: eyebrow, título de exibição em 28px, descrição e
+   ações à direita, fechando com o filete amarelo de 48 × 2px. O que é da
+   página (avisos, abas) vem depois do filete. */
 
 export function PageHeader({
   title,
@@ -88,47 +82,41 @@ export function PageHeader({
   description?: ReactNode;
   eyebrow?: ReactNode;
   actions?: ReactNode;
-  /** Filter bar or segmented controls belonging to this page. */
+  /** Avisos e abas que pertencem a esta página. */
   children?: ReactNode;
 }) {
   return (
-    <header className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
+    <header className={cn('pt-2', !children && 'border-b border-border pb-6')}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+        <div className="min-w-0 flex-1">
           {eyebrow && (
-            <div className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-ink-3">
-              {eyebrow}
-            </div>
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{eyebrow}</div>
           )}
-          <h1 className="text-[24px] leading-[1.15] font-semibold text-ink sm:text-[30px]">
-            {title}
-          </h1>
-          {description && (
-            <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-ink-3">{description}</p>
-          )}
+          <h1 className="font-display text-[28px] leading-[1.05] font-medium text-foreground">{title}</h1>
+          {description && <div className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</div>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {children}
+      {/* Filete amarelo institucional — assinatura Anchieta */}
+      <div className="mt-6 h-0.5 w-12 rounded-full bg-accent" aria-hidden />
+      {children && <div className="mt-5 space-y-4">{children}</div>}
     </header>
   );
 }
 
-/* -- Section divider with a label ----------------------------------------
-   Sentence case, not a mono all-caps eyebrow. Uppercase mono repeated a dozen
-   times per screen reads as texture, and texture is what makes a dense tool
-   tiring to look at for eight hours. */
+/* -- Rótulo de seção -------------------------------------------------------
+   O eyebrow do template (11px, caixa alta, espaçado) sobre um divisor. */
 
 export function SectionLabel({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-hairline pb-2">
-      <h2 className="text-[12px] font-semibold text-ink-3">{children}</h2>
+    <div className="flex items-baseline justify-between gap-4 border-b border-border pb-2">
+      <h2 className={LABEL_TEXT}>{children}</h2>
       {action}
     </div>
   );
 }
 
-/* -- Stat tile ------------------------------------------------------------ */
+/* -- Indicador ------------------------------------------------------------ */
 
 export function StatTile({
   label,
@@ -147,7 +135,7 @@ export function StatTile({
   icon?: ReactNode;
   tone?: 'plain' | 'band';
   onClick?: () => void;
-  /** Status hue for the value, when the metric carries a verdict. */
+  /** Cor de status do valor, quando o número carrega um veredito. */
   accent?: string;
 }) {
   const interactive = Boolean(onClick);
@@ -155,49 +143,39 @@ export function StatTile({
   const body = (
     <>
       <div className="relative flex items-start justify-between gap-3">
-        <span className="text-[12px] font-medium text-ink-3">{label}</span>
-        {icon && <span className="text-ink-4">{icon}</span>}
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        {icon && <span className="text-muted-foreground">{icon}</span>}
       </div>
 
       <div className="relative mt-2 flex items-baseline gap-2">
-        <span
-          className="font-mono text-[24px] leading-none font-medium tracking-tight"
-          style={accent ? { color: accent } : undefined}
-        >
-          <span className={accent ? '' : 'text-ink'}>{value}</span>
+        <span className="font-display text-[24px] leading-none font-medium tabular" style={accent ? { color: accent } : undefined}>
+          <span className={accent ? '' : 'text-foreground'}>{value}</span>
         </span>
-        {detail && <span className="text-[12px] text-ink-3">{detail}</span>}
+        {detail && <span className="text-xs text-muted-foreground">{detail}</span>}
       </div>
 
       {footer && (
-        <div className="relative mt-3 flex items-center justify-between gap-2 border-t border-hairline pt-2.5 text-[11px] text-ink-3">
-          {footer}
-        </div>
+        <div className="relative mt-3 flex items-center justify-between gap-2 border-t border-border pt-2.5 text-[11px] text-muted-foreground">{footer}</div>
       )}
     </>
   );
 
-  const surface = tone === 'band' ? 'bg-surface-2' : 'bg-surface';
+  const surface = tone === 'band' ? 'bg-surface' : 'border border-border bg-card shadow-card';
 
   if (interactive) {
     return (
-      <motion.button
-        type="button"
-        whileTap={press}
-        onClick={onClick}
-        className={`flex flex-col rounded-xl p-4 text-left transition-colors hover:bg-surface-hover ${surface}`}
-      >
+      <motion.button type="button" whileTap={press} onClick={onClick} className={cn('flex flex-col rounded-xl p-4 text-left transition-colors hover:bg-muted/50', surface)}>
         {body}
       </motion.button>
     );
   }
 
-  return <div className={`flex flex-col rounded-xl p-4 ${surface}`}>{body}</div>;
+  return <div className={cn('flex flex-col rounded-xl p-4', surface)}>{body}</div>;
 }
 
-/* -- Metric: a number with no box around it -------------------------------
-   For the handful of figures that open a screen. They are separated by
-   whitespace, not by five little cards in a row. */
+/* -- Métrica: um número sem caixa em volta ---------------------------------
+   Para os poucos números que abrem uma tela. Separados por espaço, não por
+   cinco cartõezinhos em fila. */
 
 export function Metric({
   label,
@@ -218,32 +196,20 @@ export function Metric({
   const inner = (
     <>
       <span
-        className={[
-          'block font-mono text-[30px] leading-none font-medium tracking-tight',
-          tone === 'crit' ? 'text-crit-ink' : tone === 'brand' ? 'text-brand-text' : 'text-ink',
-        ].join(' ')}
+        className={cn(
+          'block font-display text-[30px] leading-none font-medium tabular',
+          tone === 'crit' ? 'text-destructive' : tone === 'brand' ? 'text-primary' : 'text-foreground',
+        )}
       >
         {value}
       </span>
-      <span
-        className={[
-          'mt-2 block text-[12px] font-medium',
-          tone === 'brand' ? 'text-ink-2' : 'text-ink-3',
-        ].join(' ')}
-      >
-        {label}
-      </span>
+      <span className={cn('mt-2 block text-xs font-medium', tone === 'brand' ? 'text-foreground/80' : 'text-muted-foreground')}>{label}</span>
     </>
   );
 
   if (onClick) {
     return (
-      <motion.button
-        type="button"
-        whileTap={press}
-        onClick={onClick}
-        className="min-w-0 text-left transition-opacity hover:opacity-60"
-      >
+      <motion.button type="button" whileTap={press} onClick={onClick} className="min-w-0 text-left transition-opacity hover:opacity-60">
         {inner}
       </motion.button>
     );
@@ -251,13 +217,13 @@ export function Metric({
   return <div className="min-w-0">{inner}</div>;
 }
 
-/* -- Row: the clickable list item used across queues and directories ------ */
+/* -- Linha: o item clicável das filas e listas ---------------------------- */
 
 export function Row({
   children,
   onClick,
   active = false,
-  className = '',
+  className,
   tone = 'plain',
 }: {
   children: ReactNode;
@@ -271,25 +237,24 @@ export function Row({
     <Tag
       onClick={onClick}
       {...(onClick ? { type: 'button' as const } : {})}
-      className={[
+      className={cn(
         'relative block w-full text-left transition-colors',
-        onClick ? 'cursor-pointer' : '',
-        active ? 'bg-surface-2' : onClick ? 'hover:bg-surface-hover' : '',
+        onClick && 'cursor-pointer',
+        active ? 'bg-muted' : onClick ? 'hover:bg-muted/50' : '',
         className,
-      ].join(' ')}
-    >
-      {/* Left rail marks the active row and, in red, a breached one. */}
-      {(active || tone === 'crit') && (
-        <span
-          className={['absolute inset-y-0 left-0 w-0.5', active ? 'bg-brand' : 'bg-crit'].join(' ')}
-        />
       )}
+    >
+      {/* O trilho à esquerda marca a linha ativa e, em vermelho, a que falhou. */}
+      {(active || tone === 'crit') && <span className={cn('absolute inset-y-0 left-0 w-0.5', active ? 'bg-primary' : 'bg-destructive')} />}
       {children}
     </Tag>
   );
 }
 
-/* -- Empty state ---------------------------------------------------------- */
+/* -- Estado vazio ----------------------------------------------------------
+   O EmptyState do template (ícone num círculo de 48px, título de exibição,
+   dica) — sem a caixa tracejada, porque aqui ele quase sempre já mora
+   dentro de um cartão. */
 
 export function EmptyState({
   title,
@@ -305,38 +270,29 @@ export function EmptyState({
   compact?: boolean;
 }) {
   return (
-    <div
-      className={[
-        'flex flex-col items-center justify-center text-center',
-        compact ? 'gap-2 px-6 py-10' : 'gap-3 px-6 py-16',
-      ].join(' ')}
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-ink-4">
+    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'px-6 py-10' : 'px-6 py-14')}>
+      <span className="mb-4 grid size-12 place-items-center rounded-full border border-border bg-card text-muted-foreground" aria-hidden>
         {icon ?? <Inbox className="h-5 w-5" />}
-      </div>
-      <div>
-        <p className="text-[13px] font-semibold text-ink">{title}</p>
-        {message && (
-          <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-ink-3">{message}</p>
-        )}
-      </div>
-      {action}
+      </span>
+      <p className="font-display text-[15px] font-medium text-foreground">{title}</p>
+      {message && <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">{message}</p>}
+      {action && <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{action}</div>}
     </div>
   );
 }
 
 /* -- Skeleton ------------------------------------------------------------- */
 
-export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`shimmer rounded-md ${className}`} />;
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn('shimmer rounded-md', className)} />;
 }
 
-/* -- Definition list ------------------------------------------------------ */
+/* -- Lista de definições -------------------------------------------------- */
 
 export function DataList({
   items,
   columns = 2,
-  className = '',
+  className,
 }: {
   items: { label: string; value: ReactNode; tone?: 'plain' | 'crit' | 'ok' }[];
   columns?: 1 | 2 | 3 | 4;
@@ -349,28 +305,22 @@ export function DataList({
     4: 'grid-cols-2 sm:grid-cols-4',
   }[columns];
   return (
-    <dl className={`grid gap-x-5 gap-y-3 ${grid} ${className}`}>
+    <dl className={cn('grid gap-x-5 gap-y-3', grid, className)}>
       {items.map((item) => (
         <div key={item.label} className="min-w-0">
-          <dt className="text-[11px] font-medium text-ink-4">{item.label}</dt>
-          <dd
-            className={[
-              'mt-0.5 text-[13px] font-medium',
-              item.tone === 'crit' ? 'text-crit-ink' : 'text-ink',
-            ].join(' ')}
-          >
-            {item.value}
-          </dd>
+          <dt className={LABEL_TEXT}>{item.label}</dt>
+          <dd className={cn('mt-1 text-sm font-medium', item.tone === 'crit' ? 'text-destructive' : 'text-foreground')}>{item.value}</dd>
         </div>
       ))}
     </dl>
   );
 }
 
-/* -- Callout --------------------------------------------------------------
-   A tinted box with a matching border was the loudest thing on the page. The
-   tone now lives in a 2px rail on the left edge; the box itself is just the
-   inset surface. Same hierarchy, a fraction of the ink. */
+/* -- Aviso -----------------------------------------------------------------
+   O Callout do template (faixa com borda e fundo suave no tom). Os tons do
+   app são traduzidos aqui: warn → warning, crit → danger, ok → success. */
+
+const CALLOUT_TONE = { info: 'info', warn: 'warning', crit: 'danger', ok: 'success' } as const;
 
 export function Callout({
   children,
@@ -383,33 +333,23 @@ export function Callout({
   icon?: ReactNode;
   title?: ReactNode;
 }) {
-  const rail = {
-    info: 'bg-brand',
-    warn: 'bg-warn',
-    crit: 'bg-crit',
-    ok: 'bg-ink-4',
-  }[tone];
-
-  const textClass = {
-    info: 'text-ink',
-    warn: 'text-warn-ink',
-    crit: 'text-crit-ink',
-    ok: 'text-ink',
-  }[tone];
-
+  const t = CALLOUT_TONE[tone];
   return (
-    <div className="relative flex gap-2.5 overflow-hidden rounded-lg bg-surface-2 p-3.5 pl-4">
-      <span className={`absolute inset-y-0 left-0 w-0.5 ${rail}`} />
-      {icon && <span className={`mt-px shrink-0 ${textClass}`}>{icon}</span>}
-      <div className="min-w-0 text-[12px] leading-relaxed">
-        {title && <p className={`font-semibold ${textClass}`}>{title}</p>}
-        {children && <div className={`${title ? 'mt-1' : ''} text-ink-2`}>{children}</div>}
+    <div role={t === 'danger' ? 'alert' : 'note'} className={calloutVariants({ tone: t, variant: 'banner' })}>
+      {icon && (
+        <span className="mt-0.5 shrink-0 [&_svg]:size-4" aria-hidden>
+          {icon}
+        </span>
+      )}
+      <div className="flex min-w-0 flex-col gap-0.5 leading-snug">
+        {title && <strong className="font-semibold">{title}</strong>}
+        {children && <div className="leading-relaxed">{children}</div>}
       </div>
     </div>
   );
 }
 
-/* -- Tab bar (underline style) ------------------------------------------- */
+/* -- Abas (sublinhado) ---------------------------------------------------- */
 
 export function Tabs<T extends string>({
   tabs,
@@ -423,10 +363,7 @@ export function Tabs<T extends string>({
   layoutId: string;
 }) {
   return (
-    <div
-      role="tablist"
-      className="scroll-slim -mb-px flex gap-1 overflow-x-auto border-b border-hairline"
-    >
+    <div role="tablist" className="scroll-slim -mb-px flex gap-1 overflow-x-auto border-b border-border">
       {tabs.map((tab) => {
         const active = tab.value === value;
         return (
@@ -436,19 +373,19 @@ export function Tabs<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(tab.value)}
-            className={[
-              'relative shrink-0 px-3.5 py-2.5 text-[13px] transition-colors',
-              active ? 'font-semibold text-ink' : 'font-medium text-ink-3 hover:text-ink',
-            ].join(' ')}
+            className={cn(
+              'relative shrink-0 px-3.5 py-2.5 text-sm font-medium transition-colors',
+              active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
           >
             <span className="flex items-center gap-1.5">
               {tab.label}
               {tab.count !== undefined && (
                 <span
-                  className={[
-                    'rounded-sm px-1.5 py-px font-mono text-[10px] font-medium',
-                    active ? 'bg-surface-3 text-ink-2' : 'bg-surface-2 text-ink-4',
-                  ].join(' ')}
+                  className={cn(
+                    'rounded-sm px-1.5 py-px font-mono text-[10px] font-medium tabular',
+                    active ? 'bg-muted-strong text-foreground/80' : 'bg-muted text-muted-foreground',
+                  )}
                 >
                   {tab.count}
                 </span>
@@ -458,7 +395,7 @@ export function Tabs<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={{ duration: 0.22, ease: emphasis }}
-                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand"
+                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"
               />
             )}
           </button>
@@ -468,12 +405,8 @@ export function Tabs<T extends string>({
   );
 }
 
-/* -- Disclosure ----------------------------------------------------------- */
+/* -- Indicação de "abre" -------------------------------------------------- */
 
-export function ChevronAffordance({ className = '' }: { className?: string }) {
-  return (
-    <ChevronRight
-      className={`h-4 w-4 shrink-0 text-ink-4 transition-transform group-hover:translate-x-0.5 ${className}`}
-    />
-  );
+export function ChevronAffordance({ className }: { className?: string }) {
+  return <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground/70 transition-transform group-hover:translate-x-0.5', className)} />;
 }

@@ -15,6 +15,7 @@ import { registerCalendarRoutes } from './http/calendars';
 import { registerImportRoutes } from './http/imports';
 import { registerNotificationRoutes } from './http/notifications';
 import { registerLifecycleRoutes } from './http/lifecycle';
+import { registerStudentRoutes } from './http/students';
 import { systemStatus } from './services/system';
 
 /* ==========================================================================
@@ -107,6 +108,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   registerImportRoutes(app, ctx);
   registerNotificationRoutes(app, ctx);
   registerLifecycleRoutes(app, ctx);
+  registerStudentRoutes(app, ctx);
 
   // Em produção, a mesma porta serve a interface compilada (apps/web/dist).
   const dist = ctx.config.webDist;

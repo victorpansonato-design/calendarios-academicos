@@ -9,28 +9,31 @@ import type {
   Importance,
   IssueCode,
   LegendEntry,
+  PublicCalendar,
   ReviewIssue,
   ReviewState,
+  StudentImpact,
   User,
 } from '@calendarios/core';
 import {
   ACKNOWLEDGEABLE,
-  applyImportance,
   checkPublishable,
   defaultNotificationRule,
   emptyReview,
   formatDates,
-  importanceForMoments,
+  IMPORTANCE_LABEL,
   momentLabel,
   normalizeForCompare,
   setReminderMoments,
   suggestAnchor,
+  suggestImportance,
+  toPublicCalendar,
 } from '@calendarios/core';
 import type { AppContext } from './context';
 import { badRequest, conflict, notFound } from './errors';
 import * as repo from '../repositories/calendars';
 import { recordAudit } from '../repositories/audit';
-import { applyReminderPlan, cancelCalendarJobs, previewReminderDiff } from './notifications';
+import { applyFavoritePlan, applyReminderPlan, cancelCalendarJobs, previewFavoriteDiff, previewReminderDiff } from './notifications';
 import type { ExtractionOutput } from '../pdf/pipeline';
 
 /* ==========================================================================
@@ -239,9 +242,8 @@ function mergeEvent(existing: CalendarEvent, input: EventInput, actor: User, at:
   const pdfChanged = PDF_FIELDS.some((k) => JSON.stringify(existing[k as keyof CalendarEvent]) !== JSON.stringify(input[k]));
   const datesChanged = JSON.stringify(existing.dates) !== JSON.stringify(input.dates);
 
+  // importância e aviso são independentes: o que chegou é o que vale
   let notification = input.notification;
-  if (input.importance !== existing.importance && JSON.stringify(input.notification.offsets) === JSON.stringify(existing.notification.offsets))
-    notification = applyImportance(input.notification, input.importance);
   // período mudou de natureza (lista ↔ período): a âncora precisa ser coerente
   if (input.dates.kind === 'list' && !['each', 'first'].includes(notification.anchor)) notification = { ...notification, anchor: 'each' };
   if (input.dates.kind === 'range' && !['start', 'end'].includes(notification.anchor)) notification = { ...notification, anchor: 'start', anchorConfirmed: false };
@@ -286,7 +288,7 @@ export function createEvent(ctx: AppContext, calendarId: string, input: EventInp
     const event: CalendarEvent = {
       ...input,
       dates: { ...input.dates, label: input.dates.label || formatDates(input.dates) },
-      notification: applyImportance(input.notification, input.importance),
+      notification: input.notification,
       id: crypto.randomUUID(),
       uid: crypto.randomUUID(),
       calendarId,
@@ -351,15 +353,50 @@ export function bulkImportance(ctx: AppContext, calendarId: string, eventIds: st
     let n = 0;
     for (const e of repo.listEvents(ctx.db, calendarId)) {
       if (!ids.has(e.id) || e.importance === importance) continue;
-      // No lote, a pessoa é avisada de que os períodos seguem a sugestão (começo,
-      // ou fim quando é prazo); a escolha vale como conferida e pode ser mudada no evento.
-      const notification = applyImportance(e.notification, importance);
-      const anchorConfirmed = e.dates.kind === 'range' && (importance === 'medium' || importance === 'high') ? true : notification.anchorConfirmed;
-      repo.saveEvent(ctx.db, { ...e, importance, notification: { ...notification, anchorConfirmed }, updatedAt: now(ctx), updatedBy: actor.name });
+      // importância só decide onde o evento aparece para o aluno; os avisos não mudam
+      repo.saveEvent(ctx.db, { ...e, importance, updatedAt: now(ctx), updatedBy: actor.name });
       n += 1;
     }
-    if (n) commitEdit(ctx, c, actor, `Importância "${{ unset: 'não definida', low: 'baixa', medium: 'média', high: 'alta' }[importance]}" aplicada a ${n} evento(s)`, 'event.bulk_importance', { eventIds, importance });
+    if (n) commitEdit(ctx, c, actor, `Importância "${IMPORTANCE_LABEL[importance].toLowerCase()}" aplicada a ${n} evento(s)`, 'event.bulk_importance', { eventIds, importance });
     return n;
+  });
+}
+
+/**
+ * Sugere a importância de cada evento (regras do núcleo). `apply: false` só
+ * mostra a prévia; `apply: true` grava numa versão só. Por padrão mexe apenas
+ * nos eventos ainda sem importância — nunca desfaz uma escolha da equipe.
+ */
+export function suggestImportanceBulk(
+  ctx: AppContext,
+  calendarId: string,
+  opts: { eventIds?: string[]; onlyUnset?: boolean; apply?: boolean },
+  actor: User,
+) {
+  return ctx.db.tx(() => {
+    const c = opts.apply ? requireEditable(ctx, calendarId) : requireCalendar(ctx, calendarId);
+    const ids = opts.eventIds?.length ? new Set(opts.eventIds) : null;
+    const onlyUnset = opts.onlyUnset !== false;
+    const suggestions = repo
+      .listEvents(ctx.db, calendarId)
+      .filter((e) => (!ids || ids.has(e.id)) && (!onlyUnset || e.importance === 'unset'))
+      .map((e) => {
+        const s = suggestImportance(e);
+        return { eventId: e.id, title: e.title, dateLabel: e.dates.label, from: e.importance, to: s.importance, ruleId: s.ruleId, reason: s.reason };
+      })
+      .filter((s) => s.from !== s.to);
+    let changed = 0;
+    if (opts.apply && suggestions.length) {
+      const byId = new Map(suggestions.map((s) => [s.eventId, s.to]));
+      for (const e of repo.listEvents(ctx.db, calendarId)) {
+        const to = byId.get(e.id);
+        if (!to) continue;
+        repo.saveEvent(ctx.db, { ...e, importance: to, updatedAt: now(ctx), updatedBy: actor.name });
+        changed += 1;
+      }
+      commitEdit(ctx, c, actor, `Importância sugerida aplicada a ${changed} evento(s)`, 'event.suggest_importance', { changed });
+    }
+    return { suggestions, changed };
   });
 }
 
@@ -372,7 +409,6 @@ export function bulkReminders(ctx: AppContext, calendarId: string, eventIds: str
     const c = requireEditable(ctx, calendarId);
     if (days.length && !time) throw badRequest('Informe o horário do aviso.');
     const ids = new Set(eventIds);
-    const importance = importanceForMoments(days);
     let n = 0;
     for (const e of repo.listEvents(ctx.db, calendarId)) {
       if (!ids.has(e.id)) continue;
@@ -380,7 +416,7 @@ export function bulkReminders(ctx: AppContext, calendarId: string, eventIds: str
       // períodos seguem a sugestão (começo, ou fim quando é prazo) — avisado na confirmação
       if (e.dates.kind === 'range' && days.length) notification = { ...notification, anchorConfirmed: true };
       if (e.dates.kind === 'list' && !['each', 'first'].includes(notification.anchor)) notification = { ...notification, anchor: 'each' };
-      repo.saveEvent(ctx.db, { ...e, importance, notification, updatedAt: now(ctx), updatedBy: actor.name });
+      repo.saveEvent(ctx.db, { ...e, notification, updatedAt: now(ctx), updatedBy: actor.name });
       n += 1;
     }
     const what = days.length ? `${days.map(momentLabel).join(', ')}, às ${time.replace(':', 'h')}` : 'não avisar';
@@ -447,10 +483,23 @@ export function returnToDraft(ctx: AppContext, id: string, actor: User) {
   });
 }
 
+/** O que a publicação muda para os alunos: Importantes, observações e lembretes de favoritos. */
+export function studentImpact(ctx: AppContext, calendar: Calendar, events: CalendarEvent[]): StudentImpact {
+  const fav = previewFavoriteDiff(ctx, calendar, events);
+  const students = new Set([...fav.create.map((p) => p.studentId), ...fav.update.map((u) => u.after.studentId), ...fav.cancel.map((c) => c.job.audience.type === 'student' ? c.job.audience.studentId : '')]);
+  students.delete('');
+  return {
+    importantes: events.filter((e) => e.importance === 'high' || e.importance === 'medium').length,
+    unset: events.filter((e) => e.importance === 'unset').length,
+    withoutLegend: events.filter((e) => !e.category && !e.color).length,
+    favorites: { create: fav.create.length, update: fav.update.length, cancel: fav.cancel.length, students: students.size },
+  };
+}
+
 export function publishPreview(ctx: AppContext, id: string) {
   const { calendar, events, publishCheck } = getDetail(ctx, id);
   const diff = previewReminderDiff(ctx, calendar, events);
-  return { publishCheck, diff, status: calendar.status };
+  return { publishCheck, diff, status: calendar.status, studentImpact: studentImpact(ctx, calendar, events) };
 }
 
 export function publish(ctx: AppContext, id: string, actor: User, confirm: boolean) {
@@ -467,8 +516,10 @@ export function publish(ctx: AppContext, id: string, actor: User, confirm: boole
     const hash = repo.contentHash(repo.snapshotOf(published, events));
     repo.updateCalendarRow(ctx.db, id, { publishedVersionId: version.id, publishedVersionNumber: version.number, publishedHash: hash }, actor.name);
     const diff = applyReminderPlan(ctx, published, events, actor.name);
+    const fav = applyFavoritePlan(ctx, published, events, actor.name);
+    const favoriteDiff = { create: fav.create.length, update: fav.update.length, cancel: fav.cancel.length };
     recordAudit(ctx.db, { actor: actor.name, action: 'calendar.publish', entity: 'calendar', entityId: id, summary: `Versão ${version.number} publicada.`, detail: { versionId: version.id } });
-    return { ...getDetail(ctx, id), diff };
+    return { ...getDetail(ctx, id), diff, favoriteDiff };
   });
 }
 
@@ -530,4 +581,27 @@ export function publishedSnapshot(ctx: AppContext, id: string) {
   const snap = repo.getVersionSnapshot(ctx.db, id, row.published_version_id);
   if (!snap) return null;
   return { id, version: snap.number, publishedAt: snap.createdAt, ...snap };
+}
+
+/** A versão publicada no formato que o portal e o app leem. */
+export function publicCalendar(ctx: AppContext, id: string): PublicCalendar | null {
+  const snap = publishedSnapshot(ctx, id);
+  const c = repo.getCalendar(ctx.db, id);
+  if (!snap || !c) return null;
+  return toPublicCalendar({ id, ...snap.calendar, sourceFileId: c.sourceFileId, sourceFileName: c.sourceFileName }, snap.events, {
+    version: snap.version,
+    publishedAt: snap.publishedAt,
+    source: 'published',
+  });
+}
+
+/** Prévia da visão do aluno para a equipe: o rascunho atual ou a versão publicada. */
+export function studentPreview(ctx: AppContext, id: string, source: 'draft' | 'published'): PublicCalendar {
+  if (source === 'published') {
+    const pub = publicCalendar(ctx, id);
+    if (!pub) throw notFound('Calendário publicado');
+    return pub;
+  }
+  const { calendar, events } = getDetail(ctx, id);
+  return toPublicCalendar(calendar, events, { version: calendar.version, publishedAt: null, source: 'draft' });
 }

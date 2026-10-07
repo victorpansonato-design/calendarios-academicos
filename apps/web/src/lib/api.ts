@@ -17,9 +17,11 @@ import type {
   LifecycleStep,
   NotificationJob,
   PlannedReminder,
+  PublicCalendar,
   PublishCheck,
   ReminderDiff,
   StudentEventRecord,
+  StudentImpact,
   SystemStatus,
   User,
   Audience,
@@ -101,6 +103,34 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export type CalendarDetail = { calendar: Calendar; events: CalendarEvent[]; publishCheck: PublishCheck };
 
+export interface ImportanceSuggestionRow {
+  eventId: string;
+  title: string;
+  dateLabel: string;
+  from: Importance;
+  to: Exclude<Importance, 'unset'>;
+  ruleId: string;
+  reason: string;
+}
+
+/** Lembrete de favorito como o aluno vê. */
+export interface StudentReminder {
+  eventUid: string | null;
+  sendAt: string;
+  status: string;
+  offsetLabel: string;
+  title: string;
+  body: string;
+}
+
+export interface StarResult {
+  mark: 'star';
+  coveredByCalendar: boolean;
+  pushOptIn: boolean | null;
+  reminders: StudentReminder[];
+  note: string;
+}
+
 export interface UploadProgress {
   loaded: number;
   total: number;
@@ -161,14 +191,39 @@ export const api = {
     ack: (id: string, eventId: string | null, code: IssueCode, undo = false) => request<CalendarDetail>('POST', `/api/calendars/${id}/review/ack`, { eventId, code, undo }),
     submit: (id: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/submit`),
     returnToDraft: (id: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/return`),
-    publishPreview: (id: string) => request<{ publishCheck: PublishCheck; diff: ReminderDiff; status: string }>('GET', `/api/calendars/${id}/publish-preview`),
-    publish: (id: string) => request<CalendarDetail & { diff: ReminderDiff }>('POST', `/api/calendars/${id}/publish`, { confirm: true }),
+    suggestImportance: (id: string, opts: { apply?: boolean; onlyUnset?: boolean; eventIds?: string[] } = {}) =>
+      request<{ suggestions: ImportanceSuggestionRow[]; changed: number } & Partial<CalendarDetail>>('POST', `/api/calendars/${id}/events/suggest-importance`, opts),
+    studentPreview: (id: string, source: 'draft' | 'published') => request<PublicCalendar>('GET', `/api/calendars/${id}/student-preview?source=${source}`),
+    publishPreview: (id: string) =>
+      request<{ publishCheck: PublishCheck; diff: ReminderDiff; status: string; studentImpact?: StudentImpact }>('GET', `/api/calendars/${id}/publish-preview`),
+    publish: (id: string) =>
+      request<CalendarDetail & { diff: ReminderDiff; favoriteDiff?: { create: number; update: number; cancel: number } }>('POST', `/api/calendars/${id}/publish`, { confirm: true }),
     archive: (id: string) => request<CalendarDetail & { canceledJobs: number }>('POST', `/api/calendars/${id}/archive`),
     unarchive: (id: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/unarchive`),
     versions: (id: string) => request<{ items: CalendarVersionSummary[] }>('GET', `/api/calendars/${id}/versions`),
     restore: (id: string, versionId: string) => request<CalendarDetail>('POST', `/api/calendars/${id}/versions/${versionId}/restore`),
     audit: (id: string) => request<{ items: AuditEntry[] }>('GET', `/api/calendars/${id}/audit`),
-    reminders: (id: string) => request<{ draftPlan: PlannedReminder[]; jobs: NotificationJob[] }>('GET', `/api/calendars/${id}/reminders`),
+    reminders: (id: string) =>
+      request<{ draftPlan: PlannedReminder[]; jobs: NotificationJob[]; favoriteSummary?: { scheduled: number; students: number } }>('GET', `/api/calendars/${id}/reminders`),
+  },
+
+  /**
+   * Marcações do aluno (estrela/ocultar). Em produção quem chama é o backend do
+   * portal/app, com a STUDENT_API_KEY — o navegador da equipe não tem a chave.
+   * Por isso as prévias só gravam de verdade na demonstração.
+   */
+  student: {
+    persists: DEMO,
+    marks: (studentId: string, calendarId: string) =>
+      request<{ starred: string[]; hidden: string[]; reminders: StudentReminder[] }>('GET', `/api/public/students/${encodeURIComponent(studentId)}/calendars/${calendarId}/marks`),
+    star: (studentId: string, calendarId: string, uid: string) =>
+      request<StarResult>('PUT', `/api/public/students/${encodeURIComponent(studentId)}/calendars/${calendarId}/events/${uid}/star`),
+    unstar: (studentId: string, calendarId: string, uid: string) =>
+      request<{ mark: null; canceled: number }>('DELETE', `/api/public/students/${encodeURIComponent(studentId)}/calendars/${calendarId}/events/${uid}/star`),
+    hide: (studentId: string, calendarId: string, uid: string) =>
+      request<{ mark: 'hide'; canceled: number }>('PUT', `/api/public/students/${encodeURIComponent(studentId)}/calendars/${calendarId}/events/${uid}/hide`),
+    unhide: (studentId: string, calendarId: string, uid: string) =>
+      request<{ mark: null }>('DELETE', `/api/public/students/${encodeURIComponent(studentId)}/calendars/${calendarId}/events/${uid}/hide`),
   },
 
   imports: {

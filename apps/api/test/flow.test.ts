@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { zipSync } from 'fflate';
-import type { CalendarEvent, ImportBatch, NotificationJob, PublishCheck, ReminderDiff, Calendar } from '@calendarios/core';
+import type { CalendarEvent, ImportBatch, NotificationJob, PublishCheck, ReminderDiff, Calendar, StudentImpact } from '@calendarios/core';
 import { instantToWall } from '@calendarios/core';
 import { createTestApp, multipart, type TestApp } from './helpers';
 
@@ -107,13 +107,24 @@ describe('importação', () => {
 });
 
 describe('conferência e publicação', () => {
-  it('no lote, períodos com aviso seguem a sugestão de início/fim', async () => {
+  it('importância em lote não mexe nos avisos (decide só onde o aluno vê o evento)', async () => {
     const d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
     const dp = d.events.find((e) => e.dates.label === '01/07 a 21/08')!;
-    const res = (await t.api<Detail>('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [dp.id], importance: 'medium' })).body;
+    const res = (await t.api<Detail>('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [dp.id], importance: 'high' })).body;
     const after = res.events.find((e) => e.id === dp.id)!;
-    expect(after.notification).toMatchObject({ anchor: 'end', anchorConfirmed: true }); // inscrição: conta do fim do prazo
+    expect(after.importance).toBe('high');
+    expect(after.notification).toEqual(dp.notification);
     await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [dp.id], importance: 'unset' });
+  });
+
+  it('aviso em lote em período segue a sugestão de início/fim, sem mudar a importância', async () => {
+    const d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
+    const dp = d.events.find((e) => e.dates.label === '01/07 a 21/08')!;
+    const res = (await t.api<Detail>('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [dp.id], days: [1], time: '09:00' })).body;
+    const after = res.events.find((e) => e.id === dp.id)!;
+    expect(after.notification).toMatchObject({ anchor: 'end', anchorConfirmed: true, enabled: true }); // inscrição: conta do fim do prazo
+    expect(after.importance).toBe('unset');
+    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [dp.id], days: [], time: null });
   });
 
   it('aviso em lote exige horário; com horário, os momentos valem para todos', async () => {
@@ -142,6 +153,7 @@ describe('conferência e publicação', () => {
     const blocked = await t.api<{ detail: { blockers: { issue: { code: string } }[] } }>('POST', `/api/calendars/${calendarId}/publish`, { confirm: true });
     expect(blocked.status).toBe(409);
     expect(blocked.body.detail.blockers.map((b) => b.issue.code)).toContain('reminder_time_missing');
+    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-reminders`, { eventIds: [one.id], days: [], time: null });
     await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: [one.id], importance: 'unset' });
   });
 
@@ -152,10 +164,20 @@ describe('conferência e publicação', () => {
     expect(d.events.every((e) => e.importance === 'unset')).toBe(true);
 
     const p1 = d.events.find((e) => e.title === 'Período de aplicação da P1')!;
-    const others = d.events.filter((e) => e.id !== p1.id).map((e) => e.id);
-    await t.api('POST', `/api/calendars/${calendarId}/events/bulk-importance`, { eventIds: others, importance: 'low' });
-    // P1 com aviso, mas sem dizer se conta do início ou do fim
-    await t.api('PATCH', `/api/calendars/${calendarId}/events/${p1.id}`, { ...p1, importance: 'high' });
+    // P1 com aviso (3 e 1 dia antes), mas sem dizer se conta do início ou do fim
+    await t.api('PATCH', `/api/calendars/${calendarId}/events/${p1.id}`, {
+      ...p1,
+      importance: 'high',
+      notification: {
+        ...p1.notification,
+        enabled: true,
+        customized: true,
+        offsets: [
+          { id: 'd3', daysBefore: 3, time: '09:00' },
+          { id: 'd1', daysBefore: 1, time: '09:00' },
+        ],
+      },
+    });
 
     const blocked = await t.api<{ detail: { blockers: { issue: { code: string } }[] } }>('POST', `/api/calendars/${calendarId}/publish`, { confirm: true });
     expect(blocked.status).toBe(409);
@@ -175,8 +197,9 @@ describe('conferência e publicação', () => {
   });
 
   it('mostra o impacto antes e cria os avisos só na publicação', async () => {
-    const preview = (await t.api<{ diff: ReminderDiff }>('GET', `/api/calendars/${calendarId}/publish-preview`)).body;
+    const preview = (await t.api<{ diff: ReminderDiff; studentImpact: StudentImpact }>('GET', `/api/calendars/${calendarId}/publish-preview`)).body;
     expect(preview.diff.create).toHaveLength(2);
+    expect(preview.studentImpact).toMatchObject({ importantes: 1, unset: 45, favorites: { create: 0, update: 0, cancel: 0, students: 0 } });
     expect((await t.api<{ items: NotificationJob[] }>('GET', '/api/notifications/jobs')).body.items).toHaveLength(0);
 
     expect((await t.api('POST', `/api/calendars/${calendarId}/publish`, {})).status).toBe(400); // sem confirmar
@@ -203,7 +226,7 @@ describe('conferência e publicação', () => {
       ...p1,
       dates: { kind: 'range', start: '2026-10-05', end: '2026-10-16', dates: [], label: '' },
       importance: 'medium',
-      notification: { ...p1.notification, offsets: p1.notification.offsets },
+      notification: { ...p1.notification, offsets: [{ id: 'd1', daysBefore: 1, time: '09:00' }] },
     });
     d = (await t.api<Detail>('GET', `/api/calendars/${calendarId}`)).body;
     expect(d.calendar.status).toBe('draft');

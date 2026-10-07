@@ -10,7 +10,7 @@ import { listAudit } from '../repositories/audit';
 import { badRequest, notFound } from '../services/errors';
 import { eventInput, importance, legendInput, scopeInput, wallTime } from '../services/validate';
 import { planFor } from '../services/notifications';
-import { listJobs } from '../repositories/notifications';
+import { favoriteSummary, listJobs } from '../repositories/notifications';
 
 function notesInput(v: unknown): CalendarNote[] {
   if (!Array.isArray(v) || v.length > 100) throw badRequest('Observações inválidas.');
@@ -106,6 +106,27 @@ export function registerCalendarRoutes(app: FastifyInstance, ctx: AppContext) {
     return { changed, ...svc.getDetail(ctx, req.params.id) };
   });
 
+  /** Sugere a importância (prévia por padrão; `apply: true` grava). */
+  app.post<{ Params: P }>('/api/calendars/:id/events/suggest-importance', async (req) => {
+    const b = (req.body ?? {}) as { eventIds?: unknown; onlyUnset?: unknown; apply?: unknown };
+    const apply = b.apply === true;
+    const user = need(req, apply ? 'calendar.edit' : 'calendar.read');
+    const result = svc.suggestImportanceBulk(
+      ctx,
+      req.params.id,
+      { eventIds: Array.isArray(b.eventIds) ? b.eventIds.map(String) : undefined, onlyUnset: b.onlyUnset !== false, apply },
+      user,
+    );
+    return apply ? { ...result, ...svc.getDetail(ctx, req.params.id) } : result;
+  });
+
+  /** Como o aluno vai ver: rascunho atual (padrão) ou a versão publicada. */
+  app.get<{ Params: P }>('/api/calendars/:id/student-preview', async (req) => {
+    need(req, 'calendar.read');
+    const source = (req.query as { source?: string }).source === 'published' ? 'published' : 'draft';
+    return svc.studentPreview(ctx, req.params.id, source);
+  });
+
   app.post<{ Params: P }>('/api/calendars/:id/events/bulk-reminders', async (req) => {
     const user = need(req, 'calendar.edit');
     const b = (req.body ?? {}) as { eventIds?: unknown; days?: unknown; time?: unknown };
@@ -164,7 +185,12 @@ export function registerCalendarRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get<{ Params: P }>('/api/calendars/:id/reminders', async (req) => {
     need(req, 'notification.read');
     const { calendar, events } = svc.getDetail(ctx, req.params.id);
-    return { draftPlan: planFor(ctx, calendar, events), jobs: listJobs(ctx.db, { calendarId: calendar.id }) };
+    // lembretes de favorito são por aluno: aqui só o resumo
+    return {
+      draftPlan: planFor(ctx, calendar, events),
+      jobs: listJobs(ctx.db, { calendarId: calendar.id, excludeKinds: ['favorite_reminder'] }),
+      favoriteSummary: favoriteSummary(ctx.db, calendar.id),
+    };
   });
 
   // PDF original, inline, para abrir na página de origem (#page=N)

@@ -43,6 +43,19 @@ Regras de privacidade garantidas pelo código:
 
 Leitura em `GET /api/public/calendars` e `GET /api/public/calendars/:id` — só versões publicadas. Proteja com `PUBLIC_API_KEY` (cabeçalho `X-Integration-Key`) ou por rede interna. O `uid` de cada evento é estável entre versões: use-o como chave no app.
 
+**Como montar a tela do aluno.** Dois calendários, os dois a partir da mesma leitura:
+
+- **Importantes** = eventos de importância Alta + Média (menos as Médias que o aluno ocultou) + os que ele marcou com estrela;
+- **Calendário completo** = tudo o que vale para o aluno, mês a mês.
+
+A importância é decidida pela equipe no sistema (Alta / Média / Baixa; "não definida" conta como Baixa). As **cores são as da legenda do PDF** (`legend` + `color` de cada evento); evento sem cor aparece em cinza. A referência pronta é `buildStudentView` em [packages/core/src/student.ts](../packages/core/src/student.ts) — o portal/app pode chamar `GET /api/public/students/:studentId/calendars/:id/view` e receber a visão montada, ou montar com o mesmo pacote. As prévias "Portal do aluno" e "App Grupo Anchieta" do sistema usam exatamente essa função.
+
+- **"Hoje"** é o dia em America/Sao_Paulo (nunca `toISOString().slice(0, 10)`: às 21h de São Paulo já é o dia seguinte).
+- **Coorte e turno:** passe `cohort` (`ingressantes`/`veteranos`) e `shift` (`Diurno`, `Noturno`…) para esconder eventos só da outra coorte e mostrar o horário do turno do aluno.
+- **Estrela / ocultar:** o backend do portal/app chama as rotas de marcação com `STUDENT_API_KEY` (veja [API.md](API.md#marcações-do-aluno-x-integration-key-student_api_key-obrigatória)). A estrela agenda um push **só para aquele aluno**, com o mesmo texto do aviso do evento, que chega pelo mesmo gateway (`kind: "favorite_reminder"`, `audience.type: "student"`). Não há push imediato: a confirmação é na tela (`note`).
+- **Adicionar à agenda:** `…/events/:uid/evento.ics` (um evento) e `…/students/:studentId/calendars/:id/importantes.ics` (todos os importantes do aluno).
+- **LGPD:** as marcações (quem favoritou o quê) são dado pessoal do aluno. Ficam na tabela `student_event_marks`, não entram na auditoria (só contagens) e não aparecem na agenda da equipe (só o resumo).
+
 ## 5. OCR / leitura visual
 
 Para PDFs digitalizados (sem texto selecionável): `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `AI_MODEL` (padrão `claude-opus-5`). Só as páginas sem texto são enviadas, uma a uma. Todo evento lido assim entra com a pendência "Lido por OCR" e exige conferência. Para outro provedor, implemente `OcrProvider` em [apps/api/src/pdf/ocr.ts](../apps/api/src/pdf/ocr.ts).

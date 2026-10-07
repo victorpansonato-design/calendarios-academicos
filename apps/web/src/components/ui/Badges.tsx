@@ -1,44 +1,39 @@
 import type { ReactNode } from 'react';
+import { Badge } from './badge';
+import { cn } from '../../lib/utils';
 
 /* ==========================================================================
-   Status vocabulary
+   Vocabulário de status
    --------------------------------------------------------------------------
-   There are two kinds of small label in this app and they must not look alike:
+   Dois tipos de rótulo pequeno, e eles não podem parecer iguais:
 
-     STATUS  — a verdict you may have to act on. Rendered as a coloured dot
-               plus a word. No fill, no outline. Ten rows of tinted balloons
-               with borders is a bag of sweets; ten rows of dotted words scan
-               in one pass and still let a critical row jump out.
+     STATUS — um veredito sobre o qual talvez seja preciso agir. Badge suave
+              do template, com o ponto na frente: o ponto reforça o estado
+              sem depender só da cor.
 
-     TAG     — a fact about the record (modality, semester, channel). Rendered
-               as a quiet filled chip in ink-3. It carries no urgency, so it
-               gets no colour and no dot.
+     TAG    — um fato sobre o registro (modalidade, semestre, canal). Badge
+              de contorno, neutro. Não carrega urgência, então não tem cor
+              nem ponto.
 
-   `solid` means "this verdict is the point of the row", and spends ink
-   weight instead of fill.
+   `solid` quer dizer "este veredito é o ponto da linha" e gasta peso de
+   fonte, não preenchimento.
+
+   Os tons do app continuam os mesmos (ok/warn/risk/crit/info) e são
+   traduzidos para os tons do template aqui, num lugar só.
    ========================================================================== */
 
 export type Tone = 'ok' | 'warn' | 'risk' | 'crit' | 'info' | 'neutral' | 'muted';
 
-const DOT: Record<Tone, string> = {
-  ok: 'bg-ok',
-  warn: 'bg-warn',
-  risk: 'bg-risk',
-  crit: 'bg-crit',
-  info: 'bg-brand-2',
-  neutral: 'bg-ink-4',
-  muted: 'bg-ink-4',
-};
+type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
 
-/** Ink for an emphasised verdict. Only `crit` gets red. */
-const EMPHASIS_INK: Record<Tone, string> = {
-  ok: 'text-ink-2',
-  warn: 'text-warn-ink',
-  risk: 'text-risk-ink',
-  crit: 'text-crit-ink',
-  info: 'text-brand-text',
-  neutral: 'text-ink-2',
-  muted: 'text-ink-3',
+const TONE: Record<Tone, BadgeTone> = {
+  ok: 'success',
+  warn: 'warning',
+  risk: 'warning',
+  crit: 'danger',
+  info: 'primary',
+  neutral: 'neutral',
+  muted: 'neutral',
 };
 
 export function Pill({
@@ -47,13 +42,13 @@ export function Pill({
   dot = true,
   solid = false,
   mono = false,
-  className = '',
+  className,
   title,
   icon,
 }: {
   tone?: Tone;
   children: ReactNode;
-  /** A dot makes this a status. Without it, it is a tag. */
+  /** O ponto faz disto um status. Sem ele, é uma tag. */
   dot?: boolean;
   solid?: boolean;
   mono?: boolean;
@@ -63,43 +58,45 @@ export function Pill({
 }) {
   if (dot) {
     return (
-      <span
+      <Badge
+        variant="soft"
+        size="sm"
+        dot
+        tone={TONE[tone]}
         title={title}
-        className={[
-          'inline-flex shrink-0 items-center gap-1.5 text-[12px] whitespace-nowrap',
-          solid ? `font-semibold ${EMPHASIS_INK[tone]}` : 'font-medium text-ink-2',
-          mono ? 'font-mono' : '',
-          className,
-        ].join(' ')}
+        className={cn('w-fit shrink-0 whitespace-nowrap', solid && 'font-semibold', tone === 'muted' && 'opacity-80', mono && 'font-mono', className)}
       >
-        <span className={`h-1.25 w-1.25 shrink-0 rounded-full ${DOT[tone]}`} />
         {children}
-      </span>
+      </Badge>
     );
   }
 
   return (
-    <span
+    <Badge
+      variant="outline"
+      size="sm"
+      tone={solid ? TONE[tone] : 'neutral'}
       title={title}
-      className={[
-        'inline-flex shrink-0 items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-0.5 text-[11px] whitespace-nowrap',
-        solid ? `font-semibold ${EMPHASIS_INK[tone]}` : 'font-medium text-ink-3',
-        mono ? 'font-mono' : '',
+      className={cn(
+        'w-fit shrink-0 gap-1 whitespace-nowrap',
+        solid ? 'font-semibold' : 'text-muted-foreground',
+        tone === 'muted' && 'opacity-80',
+        mono && 'font-mono',
         className,
-      ].join(' ')}
+      )}
     >
       {icon}
       {children}
-    </span>
+    </Badge>
   );
 }
 
-/** The healthy state has no dot: nothing to do, so the row stays quiet. */
+/** O estado saudável não tem ponto: nada a fazer, a linha fica quieta. */
 export function QuietStatus({ children }: { children: ReactNode }) {
-  return <span className="inline-flex shrink-0 items-center text-[12px] font-medium whitespace-nowrap text-ink-3">{children}</span>;
+  return <span className="inline-flex shrink-0 items-center text-xs font-medium whitespace-nowrap text-muted-foreground">{children}</span>;
 }
 
-/* -- Avatar: initials, never stock photos --------------------------------- */
+/* -- Avatar: iniciais, nunca foto de banco de imagens --------------------- */
 
 const AVATAR_SIZE = {
   xs: 'h-6 w-6 text-[10px]',
@@ -118,11 +115,11 @@ export function Avatar({ name, size = 'sm', tone = 'neutral' }: { name: string; 
   return (
     <span
       aria-hidden="true"
-      className={[
+      className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full font-medium select-none',
         AVATAR_SIZE[size],
-        tone === 'brand' ? 'bg-brand text-on-brand' : 'bg-surface-2 text-ink-2',
-      ].join(' ')}
+        tone === 'brand' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+      )}
     >
       {initials(name)}
     </span>

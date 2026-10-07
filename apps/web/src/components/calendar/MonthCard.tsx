@@ -2,7 +2,8 @@ import type { CSSProperties, KeyboardEvent } from 'react';
 import type { ISODate, LegendEntry } from '@calendarios/core';
 import { addDays, fromISO } from '@calendarios/core';
 import { dayColors, monthWeeks, pointEvents, type DayIndex } from '../../lib/calendarGrid';
-import { monthName, plural, readableInk } from '../../lib/format';
+import { monthName, plural } from '../../lib/format';
+import { readableInk } from '../../lib/color';
 
 /* ==========================================================================
    Cartão de mês
@@ -56,14 +57,14 @@ export function MonthCard({
 
   return (
     <div className="min-w-0">
-      <h3 className="mb-2 text-center text-[13px] font-semibold text-ink">
+      <h3 className="mb-2 text-center font-display text-[13px] font-medium text-foreground">
         {monthName(month)}
-        {size === 'sm' ? '' : <span className="ml-1.5 font-mono text-[11px] font-medium text-ink-4">{year}</span>}
+        {size === 'sm' ? '' : <span className="ml-1.5 font-mono text-[11px] font-medium text-muted-foreground">{year}</span>}
       </h3>
-      <div role="grid" aria-label={`${monthName(month)} de ${year}`} className="overflow-hidden rounded-lg bg-surface-2 p-1">
+      <div role="grid" aria-label={`${monthName(month)} de ${year}`} className="overflow-hidden rounded-lg bg-(--day-grid) p-1">
         <div role="row" className="grid grid-cols-7">
           {WEEKDAYS.map((w) => (
-            <div key={w} role="columnheader" className="py-1.5 text-center text-[10px] font-semibold text-ink-3">
+            <div key={w} role="columnheader" className="py-1.5 text-center text-[10px] font-semibold text-muted-foreground">
               {w}
             </div>
           ))}
@@ -99,21 +100,22 @@ export function MonthCard({
                   onClick={() => onSelectDay(date)}
                   onKeyDown={(e) => onKeyDown(e, date)}
                   style={style}
+                  data-filled={fill && !dim ? '' : undefined}
                   className={[
                     'day-cell relative flex items-center justify-center rounded-sm text-[12px] transition-colors',
                     cellH,
-                    fill && !dim ? 'font-semibold' : points.length ? 'bg-surface font-semibold text-ink' : 'bg-surface text-ink-3 hover:bg-surface-hover',
+                    fill && !dim ? 'font-semibold' : points.length ? 'bg-(--day-empty) font-semibold text-foreground' : 'bg-(--day-empty) text-muted-foreground hover:bg-muted/60',
                     dim ? 'opacity-35' : '',
-                    isSel ? 'ring-2 ring-focus ring-offset-1 ring-offset-surface-2' : isToday ? 'ring-1 ring-ink-3' : '',
+                    isSel ? 'ring-2 ring-ring ring-offset-2 ring-offset-(--day-grid)' : isToday ? 'ring-1 ring-foreground/40' : '',
                   ].join(' ')}
                 >
                   <span className="font-mono">{day}</span>
                   {points.length > 1 && (
-                    <span aria-hidden="true" className="absolute right-0.5 bottom-0.5 rounded-xs bg-surface px-0.5 font-mono text-[9px] leading-[12px] font-semibold text-ink-2">
+                    <span aria-hidden="true" className="absolute right-0.5 bottom-0.5 rounded-xs bg-card px-0.5 font-mono text-[9px] leading-[12px] font-semibold text-foreground/80">
                       {points.length}
                     </span>
                   )}
-                  {points.length === 1 && !points[0].color && !fill && <span aria-hidden="true" className="absolute bottom-1 h-1 w-1 rounded-full bg-ink-4" />}
+                  {points.length === 1 && !points[0].color && !fill && <span aria-hidden="true" className="absolute bottom-1 h-1 w-1 rounded-full bg-muted-foreground/60" />}
                 </button>
               );
             })}

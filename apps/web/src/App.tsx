@@ -7,6 +7,8 @@ import { LoginView } from './views/LoginView';
 import { CalendarsView } from './views/calendars/CalendarsView';
 import { CalendarDetailView } from './views/calendar/CalendarDetailView';
 import { NotificationsView } from './views/notifications/NotificationsView';
+import { PortalPreview } from './views/preview/PortalPreview';
+import { AppPreview } from './views/preview/AppPreview';
 import { api } from './lib/api';
 import { clearSession, useSession } from './lib/session';
 import { useRoute } from './lib/router';
@@ -42,7 +44,7 @@ function Authenticated() {
     clearSession();
   };
 
-  const section = route.name === 'notifications' ? 'notifications' : 'calendars';
+  const section = route.name === 'calendar' ? 'calendars' : route.name;
   const key = route.name === 'calendar' ? `cal-${route.id}` : route.name;
 
   return (
@@ -55,6 +57,8 @@ function Authenticated() {
           {route.name === 'calendars' && <CalendarsView status={status} />}
           {route.name === 'calendar' && <CalendarDetailView id={route.id} tab={route.tab} focusEventId={route.focus} />}
           {route.name === 'notifications' && <NotificationsView tab={route.tab} status={status} />}
+          {route.name === 'student-portal' && <PortalPreview calendarId={route.calendarId} />}
+          {route.name === 'student-app' && <AppPreview calendarId={route.calendarId} />}
         </motion.div>
       </AnimatePresence>
       )}

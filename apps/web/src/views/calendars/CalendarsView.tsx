@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { CalendarDays, FileUp, FolderOpen, Loader2 } from 'lucide-react';
 import type { CalendarStatus, CalendarSummary, SystemStatus } from '@calendarios/core';
 import { normalizeForCompare } from '@calendarios/core';
-import { Button, LinkButton } from '../../components/ui/Button';
+import { Button, LinkButton } from '../../components/ui/button';
 import { Card, EmptyState, PageHeader, Row, Skeleton } from '../../components/ui/Surfaces';
 import { SearchInput, Segmented } from '../../components/ui/Fields';
 import { Pill } from '../../components/ui/Badges';
@@ -91,8 +91,8 @@ export function CalendarsView({ status }: { status: SystemStatus | null }) {
       {running && (
         <Card tone="inset" className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <Loader2 className="spin h-4 w-4 text-ink-3" />
-            <p className="text-[13px] font-medium text-ink">
+            <Loader2 className="spin h-4 w-4 text-muted-foreground" />
+            <p className="text-[13px] font-medium text-foreground">
               Leitura em andamento: <span className="font-mono">{running.done}</span> de <span className="font-mono">{running.total}</span> arquivos concluídos
             </p>
           </div>
@@ -101,7 +101,7 @@ export function CalendarsView({ status }: { status: SystemStatus | null }) {
       )}
 
       {loading && (
-        <Card padded={false} className="divide-y divide-hairline">
+        <Card padded={false} className="divide-y divide-border">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex items-center gap-4 px-5 py-4">
               <Skeleton className="h-4 w-1/3" />
@@ -135,16 +135,16 @@ export function CalendarsView({ status }: { status: SystemStatus | null }) {
                     ['2', 'Confira', 'Veja o que o sistema entendeu, lado a lado com o PDF.'],
                     ['3', 'Publique', 'Defina os avisos e publique para os alunos.'],
                   ].map(([n, t, d]) => (
-                    <li key={n} className="rounded-lg bg-surface-2 p-3.5">
-                      <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface font-mono text-[12px] text-ink-2">{n}</span>
+                    <li key={n} className="rounded-lg border border-border bg-surface p-3.5">
+                      <p className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-soft font-mono text-[12px] text-primary">{n}</span>
                         {t}
                       </p>
-                      <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">{d}</p>
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">{d}</p>
                     </li>
                   ))}
                 </ol>
-                <span className="flex items-center gap-1.5 text-[12px] text-ink-4">
+                <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                   <FolderOpen className="h-3.5 w-3.5" /> Até {status?.limits.maxFileMb ?? 25} MB por arquivo
                 </span>
               </div>
@@ -172,7 +172,7 @@ export function CalendarsView({ status }: { status: SystemStatus | null }) {
             />
           </div>
           <Card padded={false}>
-            <div className="hidden grid-cols-[minmax(0,2.4fr)_90px_110px_70px_150px_minmax(0,1fr)] gap-4 border-b border-hairline px-5 py-2.5 text-[12px] font-medium text-ink-3 lg:grid">
+            <div className="hidden grid-cols-[minmax(0,2.4fr)_90px_110px_70px_150px_minmax(0,1fr)] gap-4 border-b border-border px-5 py-2.5 text-[12px] font-medium text-muted-foreground lg:grid">
               <span>Calendário</span>
               <span>Período</span>
               <span>Modalidade</span>
@@ -183,7 +183,7 @@ export function CalendarsView({ status }: { status: SystemStatus | null }) {
             {filtered.length === 0 ? (
               <EmptyState compact title="Nenhum calendário com esses filtros" message="Limpe a busca ou escolha outro status." />
             ) : (
-              <motion.ul variants={staggerContainer} initial="initial" animate="animate" className="divide-y divide-hairline">
+              <motion.ul variants={staggerContainer} initial="initial" animate="animate" className="divide-y divide-border">
                 {filtered.map((c) => (
                   <motion.li key={c.id} variants={staggerItem}>
                     <CalendarRow c={c} />
@@ -209,15 +209,15 @@ function CalendarRow({ c }: { c: CalendarSummary }) {
     <Row onClick={() => navigate(paths.calendar(c.id))} className="px-5 py-3.5">
       <div className="grid gap-x-4 gap-y-1.5 lg:grid-cols-[minmax(0,2.4fr)_90px_110px_70px_150px_minmax(0,1fr)] lg:items-center">
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-ink">{c.title}</p>
-          <p className="mt-0.5 truncate text-[12px] text-ink-3">{audience || c.scope.audienceLabel || 'Público a definir'}</p>
+          <p className="truncate text-[13px] font-semibold text-foreground">{c.title}</p>
+          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{audience || c.scope.audienceLabel || 'Público a definir'}</p>
         </div>
-        <span className="font-mono text-[12px] text-ink-2">
+        <span className="font-mono text-[12px] text-foreground/80">
           {c.year ?? '—'}/{c.semester ?? '—'}
-          <span className="font-sans text-ink-4 lg:hidden"> · {c.scope.modality || 'modalidade a definir'} · {c.eventCount} eventos</span>
+          <span className="font-sans text-muted-foreground lg:hidden"> · {c.scope.modality || 'modalidade a definir'} · {c.eventCount} eventos</span>
         </span>
-        <span className="hidden lg:block">{c.scope.modality ? <Pill dot={false}>{c.scope.modality}</Pill> : <span className="text-[12px] text-ink-4">A definir</span>}</span>
-        <span className="hidden text-right font-mono text-[12px] text-ink-2 lg:block">{c.eventCount}</span>
+        <span className="hidden lg:block">{c.scope.modality ? <Pill dot={false}>{c.scope.modality}</Pill> : <span className="text-[12px] text-muted-foreground">A definir</span>}</span>
+        <span className="hidden text-right font-mono text-[12px] text-foreground/80 lg:block">{c.eventCount}</span>
         <div className="flex flex-col gap-0.5">
           <Pill tone={st.tone} solid={c.status === 'in_review'}>
             {st.label}
@@ -225,8 +225,8 @@ function CalendarRow({ c }: { c: CalendarSummary }) {
           </Pill>
 
         </div>
-        <span className="text-[12px] leading-snug text-ink-3">
-          <span className="block text-ink-2">{relative(c.updatedAt)}</span>
+        <span className="text-[12px] leading-snug text-muted-foreground">
+          <span className="block text-foreground/80">{relative(c.updatedAt)}</span>
           <span className="block truncate">{c.updatedBy}</span>
         </span>
       </div>
